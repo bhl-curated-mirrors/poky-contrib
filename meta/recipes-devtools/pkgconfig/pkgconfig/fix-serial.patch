@@ -1,0 +1,30 @@
+Upstream-Status: Backport
+Signed-off-by: Ross Burton <ross.burton@intel.com>
+
+From 053e0f035f6446ed978f6af2d35ea2e2e2ffc3b7 Mon Sep 17 00:00:00 2001
+From: Ross Burton <ross.burton@intel.com>
+Date: Tue, 6 Sep 2016 17:10:17 +0100
+Subject: [PATCH] pkg.m4.in: use correct comments for aclocal serial
+
+aclocal requires that serial numbers are on a line commented out with hashes not
+dnl, so change the commenting style on the first two lines.
+---
+ pkg.m4.in | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/pkg.m4.in b/pkg.m4.in
+index ecc86b1..eb44361 100644
+--- a/pkg.m4.in
++++ b/pkg.m4.in
+@@ -1,6 +1,6 @@
+-dnl pkg.m4 - Macros to locate and utilise pkg-config.   -*- Autoconf -*-
+-dnl serial 11 (pkg-config-@VERSION@)
+-dnl
++# pkg.m4 - Macros to locate and utilise pkg-config.   -*- Autoconf -*-
++# serial 11 (pkg-config-@VERSION@)
++
+ dnl Copyright © 2004 Scott James Remnant <scott@netsplit.com>.
+ dnl Copyright © 2012-2015 Dan Nicholson <dbn.lists@gmail.com>
+ dnl
+-- 
+2.8.1
