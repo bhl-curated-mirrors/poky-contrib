@@ -52,12 +52,17 @@ class ImageOptionsTests(OESelftestTestCase):
         self.assertIn("ccache", loglines, msg="No match for ccache in %s log.do_compile. For further details: %s" % (recipe , log_compile))
 
     def test_read_only_image(self):
-        distro_features = get_bb_var('DISTRO_FEATURES')
-        if not ('x11' in distro_features and 'opengl' in distro_features):
-            self.skipTest('core-image-sato/weston requires x11 and opengl in distro features')
-        self.write_config('IMAGE_FEATURES += "read-only-rootfs"')
-        bitbake("core-image-sato core-image-weston")
         # do_image will fail if there are any pending postinsts
+
+        self.write_config('IMAGE_FEATURES += "read-only-rootfs"\n'
+                          'IMAGE_INSTALL_append = " postinst-test-good"')
+        bitbake("core-image-minimal")
+
+        self.write_config('IMAGE_FEATURES += "read-only-rootfs"\n'
+                          'IMAGE_INSTALL_append = " postinst-test-delayed"')
+        res = bitbake("core-image-minimal", ignore_status=True)
+        self.assertNotEqual(res.status, 0, "bitbake should have failed")
+        self.assertTrue("The following packages could not be configured offline and rootfs is read-only" in res.output, msg="bitbake didn't fail with delayed postinst: %s" % res.output)
 
 class DiskMonTest(OESelftestTestCase):
 
