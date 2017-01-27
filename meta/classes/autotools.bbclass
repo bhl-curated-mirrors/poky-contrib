@@ -165,9 +165,10 @@ autotools_do_configure() {
 		olddir=`pwd`
 		cd ${AUTOTOOLS_SCRIPT_PATH}
 		mkdir -p ${ACLOCALDIR}
-		ACLOCAL="aclocal --system-acdir=${ACLOCALDIR}/"
+		mkdir -p m4
+		ACLOCAL="aclocal --install --system-acdir=${ACLOCALDIR}/"
 		if [ x"${acpaths}" = xdefault ]; then
-			acpaths=
+			acpaths="-I ${AUTOTOOLS_SCRIPT_PATH}/m4"
 			for i in `find ${AUTOTOOLS_SCRIPT_PATH} -ignore_readdir_race -maxdepth 2 -name \*.m4|grep -v 'aclocal.m4'| \
 				grep -v 'acinclude.m4' | sed -e 's,\(.*/\).*$,\1,'|sort -u`; do
 				acpaths="$acpaths -I $i"
