@@ -194,6 +194,7 @@ autotools_do_configure() {
 		else
 			CONFIGURE_AC=configure.ac
 		fi
+		mkdir -p m4
 		if grep "^[[:space:]]*AM_GLIB_GNU_GETTEXT" $CONFIGURE_AC >/dev/null; then
 			if grep "sed.*POTFILES" $CONFIGURE_AC >/dev/null; then
 				: do nothing -- we still have an old unmodified configure.ac
@@ -212,7 +213,6 @@ autotools_do_configure() {
 			fi
 			PRUNE_M4="$PRUNE_M4 gettext.m4 iconv.m4 lib-ld.m4 lib-link.m4 lib-prefix.m4 nls.m4 po.m4 progtest.m4"
 		fi
-		mkdir -p m4
 		if grep "^[[:space:]]*[AI][CT]_PROG_INTLTOOL" $CONFIGURE_AC >/dev/null; then
 			if ! echo "${DEPENDS}" | grep -q intltool-native; then
 				bbwarn "Missing DEPENDS on intltool-native"
