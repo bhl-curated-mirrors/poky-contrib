@@ -18,4 +18,8 @@ UPSTREAM_CHECK_URI = "http://www.multiprecision.org/index.php?prog=mpc&page=down
 
 S = "${WORKDIR}/mpc-${PV}"
 
+do_configure_prepend() {
+    chmod +w ${S}/m4/*.m4
+}
+
 BBCLASSEXTEND = "native nativesdk"
