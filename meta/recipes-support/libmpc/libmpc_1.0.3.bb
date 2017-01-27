@@ -1,4 +1,10 @@
-require libmpc.inc
+SUMMARY = "C library for complex number arithmetic with arbitrary precision and correct rounding"
+DESCRIPTION = "Mpc is a C library for the arithmetic of complex numbers with arbitrarily high precision and correct rounding of the result. It is built upon and follows the same principles as Mpfr"
+HOMEPAGE = "http://www.multiprecision.org/"
+LICENSE = "LGPLv3"
+SECTION = "libs"
+
+inherit autotools texinfo
 
 DEPENDS = "gmp mpfr"
 
@@ -11,5 +17,5 @@ SRC_URI[sha256sum] = "617decc6ea09889fb08ede330917a00b16809b8db88c29c31bfbb49cbf
 UPSTREAM_CHECK_URI = "http://www.multiprecision.org/index.php?prog=mpc&page=download"
 
 S = "${WORKDIR}/mpc-${PV}"
-BBCLASSEXTEND = "native nativesdk"
 
+BBCLASSEXTEND = "native nativesdk"
