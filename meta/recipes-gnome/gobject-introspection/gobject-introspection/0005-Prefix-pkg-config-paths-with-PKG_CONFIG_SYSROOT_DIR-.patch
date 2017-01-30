@@ -72,6 +72,11 @@ diff --git a/m4/introspection.m4 b/m4/introspection.m4
 index d89c3d9..b562266 100644
 --- a/m4/introspection.m4
 +++ b/m4/introspection.m4
+@@ -9 +9,3 @@ dnl
+-# serial 1
++# As we patch this file we need to minor-version bump the serial to ensure
++# ours is always used.
++# serial 1.1
 @@ -56,14 +56,14 @@ m4_define([_GOBJECT_INTROSPECTION_CHECK_INTERNAL],
      INTROSPECTION_GIRDIR=
      INTROSPECTION_TYPELIBDIR=
