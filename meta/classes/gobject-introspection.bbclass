@@ -27,13 +27,6 @@ DEPENDS_append_class-nativesdk = " gobject-introspection-native"
 # This is used by introspection tools to find .gir includes
 export XDG_DATA_DIRS = "${STAGING_DATADIR}"
 
-do_configure_prepend_class-target () {
-    # introspection.m4 pre-packaged with upstream tarballs does not yet
-    # have our fixes
-    mkdir -p ${S}/m4
-    cp ${STAGING_DIR_TARGET}/${datadir}/aclocal/introspection.m4 ${S}/m4
-}
-
 # .typelib files are needed at runtime and so they go to the main package (so
 # they'll be together with libraries they support).
 FILES_${PN}_append = " ${libdir}/girepository-*/*.typelib" 
