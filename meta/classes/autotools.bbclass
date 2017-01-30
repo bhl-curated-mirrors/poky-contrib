@@ -217,7 +217,6 @@ autotools_do_configure() {
 			if ! echo "${DEPENDS}" | grep -q intltool-native; then
 				bbwarn "Missing DEPENDS on intltool-native"
 			fi
-			PRUNE_M4="$PRUNE_M4 intltool.m4"
 			bbnote Executing intltoolize --copy --force --automake
 			intltoolize --copy --force --automake
 		fi
