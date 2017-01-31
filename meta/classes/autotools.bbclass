@@ -220,6 +220,11 @@ autotools_do_configure() {
 			bbnote Executing intltoolize --copy --force --automake
 			intltoolize --copy --force --automake
 		fi
+		if grep "PKG_PROG_PKG_CONFIG" $CONFIGURE_AC >/dev/null; then
+			if ! echo "${DEPENDS}" | grep -q pkgconfig-native; then
+				bbwarn "Missing DEPENDS on pkgconfig-native"
+			fi
+		fi
 
 		for i in $PRUNE_M4; do
 			find ${S} -ignore_readdir_race -name $i -delete
