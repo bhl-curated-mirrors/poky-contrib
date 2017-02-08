@@ -18,6 +18,9 @@ diff --git a/common/m4/introspection.m4 b/common/m4/introspection.m4
 index 162be57..217a6ae 100644
 --- a/common/m4/introspection.m4
 +++ b/common/m4/introspection.m4
+@ -9 +9 @@ dnl
+-# serial 1
++# serial 1.1.1
 @@ -54,14 +54,14 @@ m4_define([_GOBJECT_INTROSPECTION_CHECK_INTERNAL],
      INTROSPECTION_GIRDIR=
      INTROSPECTION_TYPELIBDIR=
@@ -39,4 +42,3 @@ index 162be57..217a6ae 100644
      AC_SUBST(INTROSPECTION_SCANNER)
 -- 
 2.6.2
-
