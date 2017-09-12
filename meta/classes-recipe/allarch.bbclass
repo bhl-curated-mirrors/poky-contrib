@@ -30,7 +30,6 @@ python () {
 
         # Set these to a common set of values, we shouldn't be using them other that for WORKDIR directory
         # naming anyway
-        d.setVar("baselib", "lib")
         d.setVar("TARGET_ARCH", "allarch")
         d.setVar("TARGET_OS", "linux")
         d.setVar("TARGET_CC_ARCH", "none")
@@ -68,4 +67,3 @@ python () {
     elif bb.data.inherits_class('packagegroup', d) and not bb.data.inherits_class('nativesdk', d):
         bb.error("Please ensure recipe %s sets PACKAGE_ARCH before inherit packagegroup" % d.getVar("FILE"))
 }
-
