@@ -164,10 +164,22 @@ multiubi_mkfs() {
 		local vname="_$3"
 	fi
 
+	# Set UBI_VOL_SIZE (for regular ubi) or UBI_VOL_SIZE_vname for multiubi
+	if [ -n "${vname}" ]; then
+		local ubi_vol_size=${UBI_VOL_SIZE}
+	else
+		eval local ubi_vol_size=\"\$UBI_VOL_SIZE${vname}\"
+	fi
+
 	echo \[ubifs\] > ubinize${vname}-${IMAGE_NAME}.cfg
 	echo mode=ubi >> ubinize${vname}-${IMAGE_NAME}.cfg
 	echo image=${IMGDEPLOYDIR}/${IMAGE_NAME}${vname}${IMAGE_NAME_SUFFIX}.ubifs >> ubinize${vname}-${IMAGE_NAME}.cfg
 	echo vol_id=0 >> ubinize${vname}-${IMAGE_NAME}.cfg
+
+	if [ -n "${ubi_vol_size}" ]; then
+		echo "vol_size=${ubi_vol_size}" >> ubinize${vname}-${IMAGE_NAME}.cfg
+	fi
+
 	echo vol_type=dynamic >> ubinize${vname}-${IMAGE_NAME}.cfg
 	echo vol_name=${UBI_VOLNAME} >> ubinize${vname}-${IMAGE_NAME}.cfg
 	echo vol_flags=autoresize >> ubinize${vname}-${IMAGE_NAME}.cfg
