@@ -130,11 +130,11 @@ meson_do_configure_prepend_class-native() {
 
 do_compile[progress] = "outof:^\[(\d+)/(\d+)\]\s+"
 meson_do_compile() {
-    ninja ${PARALLEL_MAKE}
+    ninja -v ${PARALLEL_MAKE}
 }
 
 meson_do_install() {
-    DESTDIR='${D}' ninja ${PARALLEL_MAKEINST} install
+    DESTDIR='${D}' ninja -v ${PARALLEL_MAKEINST} install
 }
 
 EXPORT_FUNCTIONS do_configure do_compile do_install
