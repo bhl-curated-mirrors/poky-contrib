@@ -12,8 +12,8 @@ DEPENDS = "glib-2.0 cairo fontconfig freetype"
 
 SRC_URI = "http://www.freedesktop.org/software/harfbuzz/release/${BP}.tar.bz2"
 
-SRC_URI[md5sum] = "97cb89c6e2a914c05c8b7e858703885f"
-SRC_URI[sha256sum] = "fbed6392ddb085e45e6090a9f389f72926d0e355f4b0a2ef51d35cf21686df45"
+SRC_URI[md5sum] = "1466ab51fc5aaa6af4065936939cec62"
+SRC_URI[sha256sum] = "84574e1b1f65ca694cb8fb6905309665c0368af18a312357f8ff886ee2f29563"
 
 inherit autotools pkgconfig lib_package gtk-doc
 
@@ -35,6 +35,5 @@ FILES_${PN}-icu-dev = "${libdir}/libharfbuzz-icu.la \
                        ${libdir}/libharfbuzz-icu.so \
                        ${libdir}/pkgconfig/harfbuzz-icu.pc \
 "
-FILES_${PN}-dev += "${libdir}/cmake/harfbuzz/harfbuzz-config.cmake"
 
 BBCLASSEXTEND = "native"
