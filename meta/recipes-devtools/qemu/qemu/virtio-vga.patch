@@ -1,0 +1,12 @@
+diff --git a/default-configs/pci.mak b/default-configs/pci.mak
+index 35e7596949..0c3fec447c 100644
+--- a/default-configs/pci.mak
++++ b/default-configs/pci.mak
+@@ -3,6 +3,7 @@ CONFIG_PCI=y
+ CONFIG_ISA_BUS=y
+ CONFIG_VIRTIO_PCI=y
+ CONFIG_VIRTIO=y
++CONFIG_VIRTIO_VGA=y
+ CONFIG_USB_UHCI=y
+ CONFIG_USB_OHCI=y
+ CONFIG_USB_EHCI=y
