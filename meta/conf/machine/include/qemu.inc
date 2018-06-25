@@ -5,8 +5,8 @@ PREFERRED_PROVIDER_virtual/libgles1 ?= "mesa"
 PREFERRED_PROVIDER_virtual/libgles2 ?= "mesa"
 
 XSERVER ?= "xserver-xorg \
+            xf86-video-modesetting \
             ${@bb.utils.contains('DISTRO_FEATURES', 'opengl', 'mesa-driver-swrast xserver-xorg-extension-glx', '', d)} \
-            xf86-video-fbdev \
             "
 
 MACHINE_FEATURES = "alsa bluetooth usbgadget screen"
