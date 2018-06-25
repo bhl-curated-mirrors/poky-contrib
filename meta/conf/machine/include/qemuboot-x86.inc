@@ -12,6 +12,6 @@ QB_AUDIO_DRV = "alsa"
 QB_AUDIO_OPT = "-soundhw ac97,es1370"
 QB_KERNEL_CMDLINE_APPEND = "vga=0 uvesafb.mode_option=${UVESA_MODE} oprofile.timer=1 uvesafb.task_timeout=-1"
 # Add the 'virtio-rng-pci' device otherwise the guest may run out of entropy
-QB_OPT_APPEND = "-vga vmware -show-cursor -usb -device usb-tablet -device virtio-rng-pci"
+QB_OPT_APPEND = "-vga none -show-cursor -usb -device usb-tablet -device virtio-rng-pci -device virtio-gpu-pci"
 
 UVESA_MODE ?= "640x480-32"
