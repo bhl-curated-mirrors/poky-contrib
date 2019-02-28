@@ -4,7 +4,7 @@ LICENSE = "MIT"
 
 PR = "r29"
 
-PACKAGE_WRITE_DEPS += "systemd-systemctl-native"
+PACKAGE_WRITE_DEPS += "systemd-native"
 
 S = "${WORKDIR}"
 

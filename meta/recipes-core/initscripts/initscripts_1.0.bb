@@ -45,7 +45,7 @@ SRC_URI_append_armeb = " file://alignment.sh"
 KERNEL_VERSION = ""
 
 DEPENDS_append = " update-rc.d-native"
-PACKAGE_WRITE_DEPS_append = " ${@bb.utils.contains('DISTRO_FEATURES','systemd','systemd-systemctl-native','',d)}"
+PACKAGE_WRITE_DEPS_append = " ${@bb.utils.contains('DISTRO_FEATURES','systemd','systemd-native','',d)}"
 
 PACKAGES =+ "${PN}-functions ${PN}-sushell"
 RDEPENDS_${PN} = "initd-functions \
