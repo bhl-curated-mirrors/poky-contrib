@@ -216,6 +216,19 @@ EXTRA_OEMESON += "-Dkexec-path=${sbindir}/kexec \
                   -Dnologin-path=${base_sbindir}/nologin \
                   -Dumount-path=${base_bindir}/umount"
 
+BBCLASSEXTEND="native"
+PACKAGECONFIG_class-native = "serial-getty-generator"
+REQUIRED_DISTRO_FEATURES_class-native = ""
+RDEPENDS_${PN}_class-native = ""
+RRECOMMENDS_${PN}_class-native = ""
+do_compile_class-native() {
+    ninja -v ${PARALLEL_MAKE} systemctl
+}
+do_install_class-native() {
+    install -d ${D}${bindir}
+    install ${B}/systemctl ${D}${bindir}
+}
+
 do_install() {
 	meson_do_install
 	install -d ${D}/${base_sbindir}
