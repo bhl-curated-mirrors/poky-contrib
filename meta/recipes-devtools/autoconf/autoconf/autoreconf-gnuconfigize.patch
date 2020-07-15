@@ -1,38 +1,35 @@
-Upstream-Status: Pending
+From 126a2932508463d5773b7ed8629bb55114f36ece Mon Sep 17 00:00:00 2001
+From: Ross Burton <ross.burton@arm.com>
+Date: Tue, 13 Oct 2020 17:38:42 +0100
+Subject: [PATCH 6/8] autoreconf-gnuconfigize.patch
 
-#
-# Patch managed by http://www.mn-logistik.de/unsupported/pxa250/patcher
-#
+---
+ bin/autoreconf.in | 5 +++++
+ 1 file changed, 5 insertions(+)
 
-Index: autoconf-2.63/bin/autoreconf.in
-===================================================================
---- autoconf-2.63.orig/bin/autoreconf.in	2008-12-31 17:43:55.000000000 +0000
-+++ autoconf-2.63/bin/autoreconf.in	2008-12-31 17:46:16.000000000 +0000
-@@ -58,7 +58,7 @@
- $help = "Usage: $0 [OPTION]... [DIRECTORY]...
- 
- Run `autoconf' (and `autoheader', `aclocal', `automake', `autopoint'
--(formerly `gettextize'), and `libtoolize' where appropriate)
-+(formerly `gettextize'), `libtoolize', and `gnu-configize' where appropriate)
- repeatedly to remake the GNU Build System files in specified
- DIRECTORIES and their subdirectories (defaulting to `.').
- 
-@@ -115,6 +115,7 @@
- my $libtoolize = $ENV{'LIBTOOLIZE'} || 'libtoolize';
- my $autopoint  = $ENV{'AUTOPOINT'}  || 'autopoint';
- my $make       = $ENV{'MAKE'}       || 'make';
+diff --git a/bin/autoreconf.in b/bin/autoreconf.in
+index 9ec98650..6ca676c8 100644
+--- a/bin/autoreconf.in
++++ b/bin/autoreconf.in
+@@ -122,6 +122,7 @@ my $intltoolize = $ENV{'INTLTOOLIZE'} || 'intltoolize';
+ my $gtkdocize   = $ENV{'GTKDOCIZE'}   || 'gtkdocize';
+ my $autopoint   = $ENV{'AUTOPOINT'}   || 'autopoint';
+ my $make        = $ENV{'MAKE'}        || 'make';
 +my $gnuconfigize = $ENV{'GNUCONFIGIZE'}       || 'gnu-configize';
  
  # --install -- as --add-missing in other tools.
  my $install = 0;
-@@ -644,6 +645,10 @@
+@@ -639,6 +640,10 @@ sub autoreconf_current_directory ($)
        }
      }
  
 +  @ex = grep (/^gnu-configize$/, @exclude);
 +  if ($#ex == -1) {
-+    xsystem ("$gnuconfigize");
++    xsystem ($gnuconfigize);
 +  }
  
    # -------------- #
    # Running make.  #
+-- 
+2.28.0
+

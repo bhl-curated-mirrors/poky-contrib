@@ -1,22 +1,20 @@
 From a7e722f974e2529d3e564d8d94c86cc8bdbc40e7 Mon Sep 17 00:00:00 2001
 From: Radu Patriu <radu.patriu@enea.com>
 Date: Mon, 24 Mar 2014 16:33:19 +0200
-Subject: [PATCH] autotest: new testsuite option to enable automake test
- result format
+Subject: [PATCH] autotest: new testsuite option to enable automake test result format
 
 * lib/autotest/general.m4: added "--am-fmt | -A" command line
 parameter for testsuite script to enable "RESULT: testname" output;
 will be used by yocto ptest packages.
 
 Upstream-Status: Pending
-
 Signed-off-by: Radu Patriu <radu.patriu@enea.com>
 ---
- lib/autotest/general.m4 |   39 +++++++++++++++++++++++++++++----------
+ lib/autotest/general.m4 | 39 +++++++++++++++++++++++++++++----------
  1 file changed, 29 insertions(+), 10 deletions(-)
 
 diff --git a/lib/autotest/general.m4 b/lib/autotest/general.m4
-index 60c0352..c1f5a9b 100644
+index 5d89d0c0..f3622da7 100644
 --- a/lib/autotest/general.m4
 +++ b/lib/autotest/general.m4
 @@ -412,6 +412,9 @@ at_recheck=
@@ -132,5 +130,5 @@ index 60c0352..c1f5a9b 100644
    at_log_msg="$at_group. $at_desc ($at_setup_line): $at_msg"
    case $at_status in
 -- 
-1.7.9.5
+2.25.1
 

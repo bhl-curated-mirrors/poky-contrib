@@ -4,14 +4,17 @@ is valid for AIX only. We do not have AIX as one of our supported
 build host or target. Therefore we get rid of the hardcoded paths
 and make life easier for cross compilation process.
 
+Upstream-Status: Inappropriate
 Signed-off-by: Khem Raj <raj.khem@gmail.com>
+---
+ lib/autoconf/functions.m4 | 9 ---------
+ 1 file changed, 9 deletions(-)
 
-Upstream-Status: Inappropriate [Upstream does care for AIX while we may not]
-Index: autoconf-2.68/lib/autoconf/functions.m4
-===================================================================
---- autoconf-2.68.orig/lib/autoconf/functions.m4	2010-09-22 14:52:19.000000000 -0700
-+++ autoconf-2.68/lib/autoconf/functions.m4	2011-08-03 11:57:05.822199513 -0700
-@@ -749,15 +749,6 @@ if test $ac_have_func = no; then
+diff --git a/lib/autoconf/functions.m4 b/lib/autoconf/functions.m4
+index 608641b3..cbc49ace 100644
+--- a/lib/autoconf/functions.m4
++++ b/lib/autoconf/functions.m4
+@@ -779,15 +779,6 @@ if test $ac_have_func = no; then
      [LIBS="-lutil $LIBS" ac_have_func=yes ac_cv_func_getloadavg_setgid=yes])
  fi
  
@@ -27,3 +30,6 @@ Index: autoconf-2.68/lib/autoconf/functions.m4
  # Make sure it is really in the library, if we think we found it,
  # otherwise set up the replacement function.
  AC_CHECK_FUNCS(getloadavg, [],
+-- 
+2.25.1
+

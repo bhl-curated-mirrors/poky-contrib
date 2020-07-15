@@ -1,25 +1,30 @@
 This value is used to determine CONFIG_SHELL and SHELL which may get exported into
 scripts shared via sstate onto other systems.
 
-Some systems have /bin/sh -> dash and others /bin/sh -> bash. Bash is preferred 
+Some systems have /bin/sh -> dash and others /bin/sh -> bash. Bash is preferred
 but sometimes we can sometimes end up exporting /bin/sh yet use bashisms.
 
 This patch puts bash first in the search results which avoids the bash/dash confusion.
 
-RP 2012/9/23
-
 Upstream-Status: Inappropriate [OE specific configuration]
+Signed-off-by: Richard Purdie <richard.purdie@linuxfoundation.org>
+---
+ lib/m4sugar/m4sh.m4 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
-Index: autoconf-2.69/lib/m4sugar/m4sh.m4
-===================================================================
---- autoconf-2.69.orig/lib/m4sugar/m4sh.m4	2012-03-07 17:35:26.000000000 +0000
-+++ autoconf-2.69/lib/m4sugar/m4sh.m4	2013-09-23 16:12:38.853597515 +0000
-@@ -229,7 +229,7 @@
+diff --git a/lib/m4sugar/m4sh.m4 b/lib/m4sugar/m4sh.m4
+index f8be3186..f98693d7 100644
+--- a/lib/m4sugar/m4sh.m4
++++ b/lib/m4sugar/m4sh.m4
+@@ -229,7 +229,7 @@ dnl Remove any tests from suggested that are also required
      [_AS_PATH_WALK([/bin$PATH_SEPARATOR/usr/bin$PATH_SEPARATOR$PATH],
        [case $as_dir in @%:@(
  	 /*)
 -	   for as_base in sh bash ksh sh5; do
 +	   for as_base in bash sh ksh sh5; do
  	     # Try only shells that exist, to save several forks.
- 	     as_shell=$as_dir/$as_base
+ 	     as_shell=$as_dir$as_base
  	     AS_IF([{ test -f "$as_shell" || test -f "$as_shell.exe"; } &&
+-- 
+2.25.1
+

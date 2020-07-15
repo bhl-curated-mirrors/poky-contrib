@@ -1,15 +1,17 @@
-Upstream-Status: Pending
-
 We don't build xmkmf so any values returned from it are going to be wrong.
 Using any paths in /usr/ for x headers/libs is a bad idea when cross compiling.
 This patch removes them to stop any confusion.
 
-RP - 20071115
+Upstream-Status: Inappropriate
+Signed-off-by: Richard Purdie <richard.purdie@linuxfoundation.org>
+---
+ lib/autoconf/libs.m4 | 89 +-------------------------------------------
+ 1 file changed, 1 insertion(+), 88 deletions(-)
 
-Index: autoconf-2.68/lib/autoconf/libs.m4
-===================================================================
---- autoconf-2.68.orig/lib/autoconf/libs.m4
-+++ autoconf-2.68/lib/autoconf/libs.m4
+diff --git a/lib/autoconf/libs.m4 b/lib/autoconf/libs.m4
+index f5828e40..79fdc992 100644
+--- a/lib/autoconf/libs.m4
++++ b/lib/autoconf/libs.m4
 @@ -159,53 +159,6 @@ m4_popdef([AC_Lib_Name])dnl
  # --------------------- #
  
@@ -64,7 +66,7 @@ Index: autoconf-2.68/lib/autoconf/libs.m4
  # _AC_PATH_X_DIRECT
  # -----------------
  # Internal subroutine of _AC_PATH_X.
-@@ -213,44 +166,7 @@ fi
+@@ -213,46 +166,7 @@ fi
  m4_define([_AC_PATH_X_DIRECT],
  [# Standard set of common directories for X headers.
  # Check X11 before X11Rn because it is often a symlink to the current release.
@@ -93,6 +95,8 @@ Index: autoconf-2.68/lib/autoconf/libs.m4
 -/usr/local/include/X11R5
 -/usr/local/include/X11R4
 -
+-/opt/X11/include
+-
 -/usr/X386/include
 -/usr/x386/include
 -/usr/XFree86/include/X11
@@ -110,7 +114,7 @@ Index: autoconf-2.68/lib/autoconf/libs.m4
  
  if test "$ac_x_includes" = no; then
    # Guess where to find include files, by looking for Xlib.h.
-@@ -299,7 +215,6 @@ AC_DEFUN([_AC_PATH_X],
+@@ -301,7 +215,6 @@ AC_DEFUN([_AC_PATH_X],
  [AC_CACHE_VAL(ac_cv_have_x,
  [# One or both of the vars are not set, and there is no cached value.
  ac_x_includes=no ac_x_libraries=no
@@ -118,3 +122,6 @@ Index: autoconf-2.68/lib/autoconf/libs.m4
  _AC_PATH_X_DIRECT
  case $ac_x_includes,$ac_x_libraries in #(
    no,* | *,no | *\'*)
+-- 
+2.25.1
+
