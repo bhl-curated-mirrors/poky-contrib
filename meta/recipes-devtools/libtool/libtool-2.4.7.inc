@@ -50,3 +50,5 @@ FILES:${PN}-dev:remove = "${datadir}/aclocal"
 FILES:libltdl = "${libdir}/libltdl${SOLIBS}"
 
 export CONFIG_SHELL="/bin/bash"
+
+LIBTOOL = "${B}/libtool"
