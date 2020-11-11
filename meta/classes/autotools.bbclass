@@ -17,7 +17,7 @@ def autotools_dep_prepend(d):
                         and not d.getVar('INHIBIT_DEFAULT_DEPS'):
             deps += 'libtool-cross '
 
-    return deps
+    return deps + 'gnu-config-native '
 
 DEPENDS_prepend = "${@autotools_dep_prepend(d)} "
 
