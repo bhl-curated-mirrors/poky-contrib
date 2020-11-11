@@ -8,7 +8,7 @@ SRC_URI = "https://alpha.gnu.org/gnu/${BPN}/${BP}.tar.gz \
            file://from-master.patch \
            file://program_prefix.patch \
            file://autoreconf-exclude.patch \
-           file://autoreconf-gnuconfigize.patch;apply=0 \
+           file://autoreconf-gnuconfigize.patch \
            file://config_site.patch \
            file://remove-usr-local-lib-from-m4.patch \
            file://preferbash.patch \
