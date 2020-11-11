@@ -1,17 +1,17 @@
-From 96bc3d82dd079e3f429d292a93b01d0e30d989ca Mon Sep 17 00:00:00 2001
+From 739bffafb64aba0a44dcb1379488648eeedeae76 Mon Sep 17 00:00:00 2001
 From: Ross Burton <ross.burton@intel.com>
 Date: Thu, 12 Mar 2020 17:25:23 +0000
-Subject: [PATCH 4/8] autoreconf-exclude.patch
+Subject: [PATCH 07/10] autoreconf-exclude.patch
 
 ---
  bin/autoreconf.in | 26 ++++++++++++++++++++++++++
  1 file changed, 26 insertions(+)
 
 diff --git a/bin/autoreconf.in b/bin/autoreconf.in
-index ba08c6ac..bef791f4 100644
+index ec0a12e2..f2d0b3c5 100644
 --- a/bin/autoreconf.in
 +++ b/bin/autoreconf.in
-@@ -77,6 +77,7 @@ Operation modes:
+@@ -82,6 +82,7 @@ Operation modes:
    -i, --install            copy missing standard auxiliary files
        --no-recursive       don't rebuild sub-packages
    -s, --symlink            with -i, install symbolic links instead of copies
@@ -19,7 +19,7 @@ index ba08c6ac..bef791f4 100644
    -m, --make               when applicable, re-run ./configure && make
    -W, --warnings=CATEGORY  report the warnings falling in CATEGORY [syntax]
  
-@@ -136,6 +137,10 @@ my $run_make = 0;
+@@ -141,6 +142,10 @@ my $run_make = 0;
  # Recurse into subpackages
  my $recursive = 1;
  
@@ -30,7 +30,7 @@ index ba08c6ac..bef791f4 100644
  ## ---------- ##
  ## Routines.  ##
  ## ---------- ##
-@@ -156,6 +161,7 @@ sub parse_args ()
+@@ -161,6 +166,7 @@ sub parse_args ()
  	  'B|prepend-include=s'	 => \@prepend_include,
  	  'i|install'            => \$install,
  	  's|symlink'            => \$symlink,
@@ -38,7 +38,7 @@ index ba08c6ac..bef791f4 100644
  	  'm|make'               => \$run_make,
  	  'recursive!'           => \$recursive);
  
-@@ -165,6 +171,8 @@ sub parse_args ()
+@@ -170,6 +176,8 @@ sub parse_args ()
    parse_WARNINGS;
    parse_warnings @warning;
  
@@ -47,7 +47,7 @@ index ba08c6ac..bef791f4 100644
    # Even if the user specified a configure.ac, trim to get the
    # directory, and look for configure.ac again.  Because (i) the code
    # is simpler, and (ii) we are still able to diagnose simultaneous
-@@ -311,8 +319,11 @@ sub autoreconf_current_directory ($)
+@@ -459,8 +467,11 @@ sub autoreconf_current_directory ($)
      }
    else
      {
@@ -59,7 +59,7 @@ index ba08c6ac..bef791f4 100644
      }
  
  
-@@ -498,9 +509,12 @@ sub autoreconf_current_directory ($)
+@@ -653,9 +664,12 @@ sub autoreconf_current_directory ($)
  	{
  	  $libtoolize .= " --ltdl";
  	}
@@ -72,7 +72,7 @@ index ba08c6ac..bef791f4 100644
      }
    else
      {
-@@ -537,8 +551,11 @@ sub autoreconf_current_directory ($)
+@@ -692,8 +706,11 @@ sub autoreconf_current_directory ($)
      }
    elsif ($install)
      {
@@ -84,7 +84,7 @@ index ba08c6ac..bef791f4 100644
      }
    else
      {
-@@ -576,7 +593,10 @@ sub autoreconf_current_directory ($)
+@@ -731,7 +748,10 @@ sub autoreconf_current_directory ($)
    # latter runs the former, and (ii) autoconf is stricter than
    # autoheader.  So all in all, autoconf should give better error
    # messages.
@@ -95,7 +95,7 @@ index ba08c6ac..bef791f4 100644
  
  
    # -------------------- #
-@@ -597,7 +617,10 @@ sub autoreconf_current_directory ($)
+@@ -752,7 +772,10 @@ sub autoreconf_current_directory ($)
      }
    else
      {
@@ -106,7 +106,7 @@ index ba08c6ac..bef791f4 100644
      }
  
  
-@@ -614,7 +637,10 @@ sub autoreconf_current_directory ($)
+@@ -769,7 +792,10 @@ sub autoreconf_current_directory ($)
        # We should always run automake, and let it decide whether it shall
        # update the file or not.  In fact, the effect of '$force' is already
        # included in '$automake' via '--no-force'.
@@ -116,7 +116,7 @@ index ba08c6ac..bef791f4 100644
 +      }
      }
  
- 
+   # ---------------------------------------------------- #
 -- 
 2.25.1
 

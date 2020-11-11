@@ -1,1771 +1,320 @@
-From 730f382a92ec897b3142fdac4dc1f3c8a9a67909 Mon Sep 17 00:00:00 2001
-From: Zack Weinberg <zackw@panix.com>
-Date: Thu, 24 Sep 2020 16:06:23 -0400
-Subject: [PATCH 1/9] mktmpdir: Ensure that $tmp is always an absolute
- pathname.
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-Several autotools programs use ‘do’ to evaluate Perl code
-generated into a file in the temporary directory created by
-Autom4te::General::mktmpdir.  If the environment variable
-TMPDIR is a relative path, mktmpdir will set $tmp to a
-relative path and we’ll end up trying to ‘do’ a relative
-path, which searches for the file in @INC.  This doesn’t
-work under perl 5.26 or later, because ‘.’ was removed
-from @INC in that version (for security reasons).
-
-Ensure that mktmpdir sets $tmp to an absolute pathname.
-Also use File::Temp::tempdir to create the temporary
-directory, instead of shelling out to ‘mktemp -d’;
-this eliminates a subprocess and means we don’t have
-to worry about cleaning up the directory on exit.
-
-Problem found by Kent Fredric and reported as
-<https://bugs.gentoo.org/625576>.
-Supersedes Gentoo’s autoconf-2.69-perl-5.26-2.patch.
-
-* lib/Autom4te/General.pm
-  (mktmpdir): Use File::Temp to create temporary directory.
-  Ensure that $tmp is an absolute path.
-  (END): No need to clean up $tmp.
-
-* tests/tools.at (autotools and relative TMPDIR): New test.
----
- lib/Autom4te/General.pm | 41 +++++++++++++++++------------------------
- tests/tools.at          | 32 ++++++++++++++++++++++++++++++++
- 2 files changed, 49 insertions(+), 24 deletions(-)
-
-diff --git a/lib/Autom4te/General.pm b/lib/Autom4te/General.pm
-index 01004575..e07e7e0f 100644
---- a/lib/Autom4te/General.pm
-+++ b/lib/Autom4te/General.pm
-@@ -39,8 +39,9 @@ use warnings FATAL => 'all';
- use Carp;
- use Exporter;
- use File::Basename;
--use File::Path ();
-+use File::Spec ();
- use File::stat;
-+use File::Temp ();
- use IO::File;
+diff --git a/bin/autom4te.in b/bin/autom4te.in
+index 20ecca9e..9aa0d1f1 100644
+--- a/bin/autom4te.in
++++ b/bin/autom4te.in
+@@ -546,21 +546,38 @@ sub handle_output ($$)
+     foreach (sort keys %forbidden);
+   verb "allowed   tokens: $allowed";
+ 
+-  # Read the (cached) raw M4 output, produce the actual result.  We
+-  # have to use the 2nd arg to have Autom4te::XFile honor the third, but then
+-  # stdout is to be handled by hand :(.  Don't use fdopen as it means
+-  # we will close STDOUT, which we already do in END.
+-  my $out = new Autom4te::XFile;
++  # Read the (cached) raw M4 output, produce the actual result.
++  # If we are writing to a regular file, replace it atomically.
++  my $atomic_replace = 0;
++  my $out;
+   if ($output eq '-')
+     {
+-      $out->open (">$output");
++      # Don't just make $out be STDOUT, because then we would close STDOUT,
++      # which we already do in END.
++      $out = new Autom4te::XFile ('>&STDOUT');
++    }
++  elsif (-e $output && ! -f $output)
++    {
++      $out = new Autom4te::XFile ($output, '>');
+     }
+   else
+     {
+-      $out->open ($output, O_CREAT | O_WRONLY | O_TRUNC, oct ($mode));
++      my (undef, $outdir, undef) = fileparse ($output);
++
++      use File::Temp ();
++      $out = new File::Temp (UNLINK => 0, DIR => $outdir);
++      fatal "cannot create a file in $outdir: $!"
++        unless $out;
++
++      # File::Temp doesn't give us access to 3-arg open(2), unfortunately.
++      # In older Perls, implicit conversion of a File::Temp to its filename
++      # cannot be relied upon.
++      chmod (oct ($mode) & ~(umask), $out->filename)
++        or fatal "setting mode of " . $out->filename . ": $!";
++
++      $atomic_replace = 1;
+     }
+-  fatal "cannot create $output: $!"
+-    unless $out;
++
+   my $in = new Autom4te::XFile ($ocache . $req->id, "<");
+ 
+   my %prohibited;
+@@ -585,7 +602,8 @@ sub handle_output ($$)
+       foreach (split (/\W+/))
+ 	{
+ 	  $prohibited{$_} = $.
+-	    if !/^$/ && /$forbidden/o && !/$allowed/o && ! exists $prohibited{$_};
++	    if !/^$/ && /$forbidden/o && !/$allowed/o
++               && ! exists $prohibited{$_};
+ 	}
+ 
+       # Performed *last*: the empty quadrigraph.
+@@ -595,6 +613,8 @@ sub handle_output ($$)
+     }
+ 
+   $out->close();
++  update_file ($out->filename, $output, $force)
++    if $atomic_replace;
+ 
+   # If no forbidden words, we're done.
+   return
+diff --git a/bin/autoreconf.in b/bin/autoreconf.in
+index ccbd6c47..ec0a12e2 100644
+--- a/bin/autoreconf.in
++++ b/bin/autoreconf.in
+@@ -414,7 +414,7 @@ sub autoreconf_current_directory ($)
+ 	  s/dnl.*//;
+ 	  $uses_autoconf = 1 if /AC_INIT/;
+ 	  # See below for why we look for gettext here.
+-	  $uses_gettext = 1  if /^AM_GNU_GETTEXT_VERSION/;
++	  $uses_gettext = 1  if /^AM_GNU_GETTEXT_(?:REQUIRE_)?VERSION/;
+ 	}
+       if (!$uses_autoconf)
+         {
+@@ -442,12 +442,12 @@ sub autoreconf_current_directory ($)
+   # not.  I guess that once Gettext move to 2.5x we will be able to,
+   # but in the meanwhile forget it.
+   #
+-  # We can only grep for AM_GNU_GETTEXT_VERSION in configure.ac.  You
+-  # might think this approach is naive, and indeed it is, as it
+-  # prevents one to embed AM_GNU_GETTEXT_VERSION in another *.m4, but
+-  # anyway we don't limit the generality, since... that's what
+-  # autopoint does.  Actually, it is even more restrictive, as it
+-  # greps for '^AM_GNU_GETTEXT_VERSION('.  We did this above, while
++  # We can only grep for AM_GNU_GETTEXT_(REQUIRE_)?VERSION in configure.ac.
++  # You might think this approach is naive, and indeed it is, as it prevents
++  # one to embed AM_GNU_GETTEXT_(REQUIRE_)?VERSION in another *.m4, but
++  # anyway we don't limit the generality, since... that's what autopoint does.
++  # Actually, it is even more restrictive, as it greps for
++  # '^AM_GNU_GETTEXT_(REQUIRE_)?VERSION('.  We did this above, while
+   # scanning configure.ac.
+   if (!$uses_gettext)
+     {
+@@ -611,9 +611,13 @@ sub autoreconf_current_directory ($)
+     }
+ 
+   # Gettext consistency checks...
+-  error $configure_ac, "AM_GNU_GETTEXT is used, but not AM_GNU_GETTEXT_VERSION"
++  error($configure_ac,
++        "AM_GNU_GETTEXT is used, but not AM_GNU_GETTEXT_VERSION"
++        . " or AM_GNU_GETTEXT_REQUIRE_VERSION")
+     if $uses_gettext_via_traces && ! $uses_gettext;
+-  error $configure_ac, "AM_GNU_GETTEXT_VERSION is used, but not AM_GNU_GETTEXT"
++  error($configure_ac,
++        "AM_GNU_GETTEXT_VERSION or AM_GNU_GETTEXT_REQUIRE_VERSION is used,"
++        . " but not AM_GNU_GETTEXT")
+     if $uses_gettext && ! $uses_gettext_via_traces;
  
- use Autom4te::ChannelDefs;
-@@ -152,8 +153,7 @@ our $version = undef;
  
- =item C<END>
- 
--Filter Perl's exit codes, delete any temporary directory (unless
--C<$debug>), and exit nonzero whenever closing C<STDOUT> fails.
-+Filter Perl's exit codes and exit nonzero whenever closing C<STDOUT> fails.
- 
- =cut
- 
-@@ -184,12 +184,6 @@ sub END
-   # from calls to die when `$! = n'.  It's not big deal because
-   # we only call `exit (0)' or `exit (1)'.)
- 
--  if (!$debug && defined $tmp && -d $tmp)
--    {
--      local $SIG{__WARN__} = sub { $status = 1; warn $_[0] };
--      File::Path::rmtree $tmp;
--    }
--
-   # This is required if the code might send any output to stdout
-   # E.g., even --version or --help.  So it's best to do it unconditionally.
-   if (! close STDOUT)
-@@ -284,8 +278,8 @@ sub shell_quote($)
- =item C<mktmpdir ($signature)>
- 
- Create a temporary directory which name is based on C<$signature>.
--Store its name in C<$tmp>.  C<END> is in charge of removing it, unless
--C<$debug>.
-+Store its name in C<$tmp>.  It will be removed at program exit,
-+unless C<$debug> is true.
- 
- =cut
- 
-@@ -294,23 +288,22 @@ C<$debug>.
- sub mktmpdir ($)
- {
-   my ($signature) = @_;
--  my $TMPDIR = $ENV{'TMPDIR'} || '/tmp';
--  my $quoted_tmpdir = shell_quote ($TMPDIR);
- 
--  # If mktemp supports dirs, use it.
--  $tmp = `(umask 077 &&
--	   mktemp -d $quoted_tmpdir/"${signature}XXXXXX") 2>/dev/null`;
--  chomp $tmp;
--
--  if (!$tmp || ! -d $tmp)
--    {
--      $tmp = "$TMPDIR/$signature" . int (rand 10000) . ".$$";
--      mkdir $tmp, 0700
--	or croak "$me: cannot create $tmp: $!\n";
--    }
-+  # Ensure that we refer to the temporary directory by absolute
-+  # pathname; most importantly, this ensures that C<do FILE> will
-+  # work whenever FILE is in $tmp, even when '.' is not in @INC
-+  # (perl 5.26 and later).
-+  my $TMPDIR = File::Spec->rel2abs (File::Spec->tmpdir ());
-+  $tmp = File::Temp::tempdir (
-+    $signature . "XXXXXX",
-+    DIR => $TMPDIR,
-+    CLEANUP => !$debug
-+  );
- 
-   print STDERR "$me:$$: working in $tmp\n"
-     if $debug;
-+
-+  return $tmp;
- }
- 
- 
-diff --git a/tests/tools.at b/tests/tools.at
-index 2ad46ca1..6288de00 100644
---- a/tests/tools.at
-+++ b/tests/tools.at
-@@ -1621,3 +1621,35 @@ END
- done
- 
- AT_CLEANUP
-+
-+# autotools and file names containing whitespace
-+# ----------------------------------------------
-+
-+AT_SETUP([autotools and relative TMPDIR])
-+
-+# We use aclocal.
-+AT_CHECK([aclocal --version || exit 77], [], [ignore], [ignore])
-+
-+mkdir _tmp
-+TMPDIR=_tmp
-+export TMPDIR
-+
-+AT_DATA([configure.ac],
-+[[AC_INIT(x,0)
-+AC_CONFIG_HEADERS([config.h:config.hin])
-+AC_MACRO
-+AC_OUTPUT
-+]])
-+
-+mkdir m4
-+AT_DATA([m4/foo.m4],
-+[[AC_DEFUN([AC_MACRO],
-+[AC_DEFINE([HAVE_MACROS], 1, [Define if you have macros.])])
-+]])
-+
-+AT_CHECK([aclocal -I m4])
-+AT_CHECK_AUTOHEADER([], [HAVE_MACROS])
-+AT_CHECK_AUTOCONF
-+AT_CHECK_CONFIGURE
-+
-+AT_CLEANUP
--- 
-2.25.1
-
-
-From 04d14ad18a6a515d011fa5d69b33c43b58a998c1 Mon Sep 17 00:00:00 2001
-From: Zack Weinberg <zackw@panix.com>
-Date: Sat, 26 Sep 2020 13:40:23 -0400
-Subject: [PATCH 2/9] Reorganize 2.70 NEWS
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-The changes are now classified into “backward incompatibilities”,
-“new features”, “obsolete features and new warnings”,
-“notable bug fixes”, and “autotest enhancements”.
-
-Also make the warning about argument-quotation bugs more prominent
-and explicit.  (See for instance Savannah bug 110319.)
----
- NEWS | 364 +++++++++++++++++++++++++++++++++--------------------------
- 1 file changed, 204 insertions(+), 160 deletions(-)
-
-diff --git a/NEWS b/NEWS
-index 8a8ac9f1..93138f9b 100644
---- a/NEWS
-+++ b/NEWS
-@@ -2,61 +2,32 @@ GNU Autoconf NEWS - User visible changes.
- 
- * Noteworthy changes in release ?.? (????-??-??) [?]
- 
--** config.log properly escapes arguments in the header comment;
--   config.status --config output is now quoted in a more readable fashion
-+** Backward incompatibilities:
- 
--** Configure scripts now support a '--runstatedir' option, which
--   defaults to '${localstatedir}/run', and which can be used to place
--   per-process temporary runtime files (such as pid files) into '/run'
--   instead of '/var/run'.
-+*** Many macros have become pickier about argument quotation.
- 
--** Warnings about obsolete constructs are now on by default.
--   They can be turned off with '-Wno-obsolete'.
-+  If you get a shell syntax error from your generated configure
-+  script, or seemingly impossible misbehavior (e.g. entire blocks of
-+  the configure script not getting executed), check first that all
-+  macro arguments are properly quoted. The “M4 Quotation” section of
-+  the manual explains how to quote macro arguments properly.
- 
--** The use of the long-deprecated name 'configure.in' for the autoconf
--   input file now elicits a warning in the 'obsolete' category.
-+  It is unfortunately not possible for autoupdate to correct
-+  quotation errors.
- 
--** autoconf will now issue warnings (in the ‘syntax’ category) if the
--   input file is missing a call to AC_INIT and/or AC_OUTPUT.
-+*** Many macros no longer AC_REQUIRE as many other macros as they used to.
- 
--** autoreconf will now run gtkdocize and intltoolize when appropriate.
--
--** Older version of automake and aclocal (< 1.8) are no longer supported
--   by autoreconf.
--
--** Use of printf is now recommended instead of working around bugs in
--   echo.  The macros AS_ECHO and AS_ECHO_N now expand unconditionally to
--   'printf "%s\n"' and 'printf %s'.
--
--** Use of the undocumented internal shell variables $as_echo and
--   $as_echo_n now elicits a warning in the 'obsolete' category.
--   The macros AS_ECHO and AS_ECHO_N should be used instead.
--
--** When checking for missing templates, autoheader now takes any
--   templates defined in the inputs of secondary config headers into
--   account.  This makes it possible to use AC_DEFINE for secondary
--   headers without duplicating the template in the main config header.
--
--** Many macros have been improved to expand their arguments
--   once and only once.  This makes ‘autoconf’ run faster.  However, it
--   may break configure scripts that did not quote all macro arguments
--   properly.  The ‘M4 Quotation’ section of the manual explains how to
--   quote macro arguments properly.
--
--** Several macros that are commonly used early in a configure
--   script, such as AC_PROG_CC, have been optimized and no longer
--   invoke as many subroutine macros as they used to.  This can expose
--   several classes of bugs: these are the ones we know about:
-+  This can expose several classes of latent bugs.  These are the ones
-+  we know about:
- 
-    - Make sure to explicitly invoke all of the macros that set result
-      variables used later in the configure script, or in generated
-      Makefiles.
- 
-    - Autoconf macros that use AC_REQUIRE internally, are not safe to
--     use inside of hand-written shell conditional or looping
--     constructs.  Use AS_IF, AS_CASE, AS_FOR, etc. instead.
--     (See the “Prerequisite Macros” section of the manual for
--     further explanation.)
-+     use inside of hand-written shell control-flow constructs.  Use
-+     AS_IF, AS_CASE, AS_FOR, etc. instead.  (See the “Prerequisite
-+     Macros” section of the manual for further explanation.)
- 
-      The set of macros that use AC_REQUIRE internally may change from
-      release to release.  The only macros that are guaranteed *not* to
-@@ -66,162 +37,235 @@ GNU Autoconf NEWS - User visible changes.
-    - AC_REQUIRE cannot be applied to macros that need to be used with
-      arguments.  Instead, invoke the macro normally, with its arguments.
- 
--** Macros that take whitespace-separated lists as arguments
--   now always expand macros within those arguments.  (Formerly, these
--   macros would *usually* expand those arguments, but the behavior was
--   not reliable nor was it consistent between autoconf and autoheader.)
-+*** Older versions of automake and aclocal (< 1.8) are no longer supported.
- 
--   Macro expansion within these arguments is deprecated; if expansion
--   changes the list, a warning in the 'obsolete' category will be
--   emitted.  Note that 'dnl' is a macro.  Putting 'dnl' comments
--   inside any argument to an Autoconf macro is, in general, only
--   supported when that argument takes more Autoconf code (e.g. the
--   ACTION-IF-TRUE argument to AC_COMPILE_IFELSE).
-+*** AC_CHECK_HEADER and AC_CHECK_HEADERS only do a compilation test.
- 
--   The affected macros are AC_CHECK_FILES, AC_CHECK_FUNCS,
--   AC_CHECK_FUNCS_ONCE, AC_CHECK_HEADERS, AC_CHECK_HEADERS_ONCE,
--   AC_CONFIG_MACRO_DIRS, AC_CONFIG_SUBDIRS, and AC_REPLACE_FUNCS.
-+  This completes the transition from preprocessor-based header tests
-+  begun in Autoconf 2.56.
-+
-+  The double test that was the default since Autoconf 2.64 is no
-+  longer available.  You can still request a preprocessor-only test
-+  by specifying [-] as the fourth argument to either macro, but this
-+  is now deprecated.  If you really need that behavior use
-+  AC_PREPROC_IFELSE.
- 
--** Man pages for config.guess and config.sub are no longer provided.
--   They were moved to the master source tree for config.guess and config.sub.
-+*** AC_INCLUDES_DEFAULT assumes an ISO C90 compliant C implementation.
- 
--** Macros
-+  Specifically, it assumes that the ISO C90 headers <stdlib.h> and
-+  <string.h> are available, without checking for them, and does not
-+  include the pre-standard header <memory.h> at all.  If the POSIX
-+  header <strings.h> exists, it will be included, without testing
-+  whether it is safe to include both <string.h> and <strings.h> in the
-+  same source file.
- 
--- New macro AC_C__GENERIC.
-+  For compatibility’s sake, the C preprocessor macros STDC_HEADERS,
-+  HAVE_STDLIB_H, and HAVE_STRING_H are defined unconditionally.
-+  These preprocessor macros should be considered obsolescent.
- 
--- AC_C_VARARRAYS now defines __STDC_NO_VLA__ if variable-length
--  arrays are not supported and if the compiler does not already
--  define __STDC_NO_VLA__.  This is for compatibility with C11.
--  For backward compatibility with Autoconf 2.61-2.69 AC_C_VARARRAYS
--  still defines HAVE_C_VARARRAYS, but this usage is obsolescent.
-+  Future releases of Autoconf may reduce the set of headers checked
-+  for by AC_INCLUDES_DEFAULT.
- 
--- AC_CONFIG_MACRO_DIRS
--  New macro, used to declare multiple directories when looking for
--  local M4 macros.  This macro overcomes some of the shortfalls in the
--  older AC_CONFIG_MACRO_DIR, which could only be used once; although
--  the older macro remains for compatibility with older tools.  The
--  newer macro is used by Automake 1.13 and later to eliminate the
--  need to specify ACLOCAL_AMFLAGS in Makefile.am.
-+*** AS_ECHO and AS_ECHO_N unconditionally use ‘printf’.
- 
--- AC_PROG_CC now prefers C11 if available, falling back on C99 and
--  then on C89 as before.  Similarly, AC_PROG_CXX now prefers C++11
--  if available, falling back on C++98.
-+  This is substantially simpler, more reliable, and, in most cases,
-+  faster than attempting to use ‘echo’ at all.  However, if ‘printf’
-+  is not a shell builtin, configure scripts will run noticeably
-+  slower, and if ‘printf’ is not available at all, they will crash.
-+  The only systems where this is known to be a problem are extremely
-+  old, and unlikely to be able to handle modern C programs for other
-+  reasons (e.g. not having a C90-compliant compiler at all).
- 
--- AC_PROG_CC is now defined via AC_DEFUN_ONCE, to avoid bloat in 'configure'.
-+*** AC_INIT now trims extra white space from its arguments.
- 
--- AC_PROG_CC_STDC, AC_PROG_CC_C89, AC_PROG_CC_C99 have been marked as obsolete.
--  Applications should use AC_PROG_CC.
-+  For instance, AC_INIT([  GNU  Hello  ], [1.0]) will set PACKAGE_NAME
-+  to “GNU Hello”.
- 
--- AC_PROG_LEX no longer looks for a library providing the function
--  ‘yywrap’.  LEXLIB will only be set to ‘-lfl’ or ‘-ll’ if a
--  scanner that defines both ‘main’ and ‘yywrap’ itself still needs
--  something else from that library.
-+*** Macros that take whitespace-separated lists as arguments
-+    now always expand macros within those arguments.
- 
--  Packages should define yywrap themselves, or use %noyywrap.
-+  Formerly, these macros would *usually* expand those arguments, but
-+  the behavior was not reliable nor was it consistent between autoconf
-+  and autoheader.
- 
--- AC_USE_SYSTEM_EXTENSIONS now enables more extensions on HP-UX,
--  macOS, and MINIX, as well as on systems conforming to recent
--  ISO/IEC C technical reports and specifications.
-+  Macro expansion within these arguments is deprecated; if expansion
-+  changes the list, a warning in the “obsolete” category will be
-+  emitted.  Note that ‘dnl’ is a macro.  Putting ‘dnl’ comments inside
-+  any argument to an Autoconf macro is, in general, only supported
-+  when that argument takes more Autoconf code (e.g. the ACTION-IF-TRUE
-+  argument to AC_COMPILE_IFELSE).
- 
--- AC_CHECK_DECL and AC_CHECK_DECLS can now report missing declarations for
--  functions that are also Clang compiler builtins.
-+  The affected macros are AC_CHECK_FILES, AC_CHECK_FUNCS,
-+  AC_CHECK_FUNCS_ONCE, AC_CHECK_HEADERS, AC_CHECK_HEADERS_ONCE,
-+  AC_CONFIG_MACRO_DIRS, AC_CONFIG_SUBDIRS, and AC_REPLACE_FUNCS.
- 
--- AC_FUNC_VFORK now checks for the signal-handling bug in Solaris 2.4 'vfork'.
--  Formerly, it ignored this bug, so that Emacs could use some tricky
--  code on that platform.  Solaris 2.4 has not been supported since
--  2003 and nowadays it's better to omit that old trick.
-+*** AC_PROG_LEX no longer looks for ‘yywrap’.
- 
--- Autotest provides a new macro AT_DATA_UNQUOTED, similar to AT_DATA
--  but processing variable substitutions, command substitutions and
--  backslashes in the contents argument.
-+  LEXLIB will only be set to ‘-lfl’ or ‘-ll’ if a scanner that defines
-+  both ‘main’ and ‘yywrap’ itself still needs something else from that
-+  library.
- 
--- AC_CONFIG_TESTDIR will automatically pass EXEEXT to a testsuite (via
--  the atconfig file).
-+  We recommend scanners define yywrap themselves, or use %noyywrap.
- 
--- AT_TESTED arguments can use variable or command substitutions, including
--  in particular $EXEEXT
-+*** AC_FUNC_VFORK no longer ignores a signal-handling bug in Solaris 2.4.
- 
--- AC_CHECK_HEADER and AC_CHECK_HEADERS now default to doing only a
--  compilation test.  This completes the transition from preprocessor-
--  based header tests begun in Autoconf 2.56.
-+  This bug was being ignored because Emacs wanted to use ‘vfork’ on
-+  Solaris 2.4 anyway, but current versions of Emacs have dropped
-+  support for Solaris 2.4.  Most programs will want to avoid ‘vfork’
-+  on this OS because of this bug.
- 
--  The double test that was the default since Autoconf 2.64 is no
--  longer available.  You can still request a preprocessor-only test
--  by specifying '-' as the fourth argument to either macro, but this
--  is now deprecated.  If you really need that behavior use
--  AC_PREPROC_IFELSE.
-+** New features
- 
--- AC_INCLUDES_DEFAULT has been streamlined.  It now assumes that the
--  ISO C90 headers 'stdlib.h' and 'string.h' are unconditionally
--  available, and does not include the pre-standard header 'memory.h'
--  at all.  If the POSIX header 'strings.h' exists, it will be
--  included; it is assumed to be safe to include both 'string.h' and
--  'strings.h' in the same source file.  We are not aware of any
--  current system that violates any of the above assumptions.
-+*** Configure scripts now support a ‘--runstatedir’ option.
- 
--  For compatibility's sake, the C preprocessor macros STDC_HEADERS,
--  HAVE_STDLIB_H, and HAVE_STRING_H are defined unconditionally.
--  These preprocessor macros should be considered obsolescent.
-+  This defaults to ‘${localstatedir}/run’.  It can be used, for
-+  instance, to place per-process temporary runtime files (such as pid
-+  files) into ‘/run’ instead of ‘/var/run’.
- 
--  Future releases of Autoconf may reduce the set of headers checked
--  for by AC_INCLUDES_DEFAULT.
-+*** autoreconf will now run gtkdocize and intltoolize when appropriate.
-+
-+*** autoheader handles secondary config headers better.
-+
-+  It is no longer necessary to duplicate AC_DEFINE templates in the
-+  main configuration header for autoheader to notice them.
- 
--- AC_HEADER_STDC and AC_HEADER_TIME are now stubs which will be
--  removed from 'configure.ac' by 'autoupdate'.  For compatibility's
--  sake, the stubs (and their 'autoupdate' replacements) continue to
--  define the C preprocessor macros STDC_HEADERS and TIME_WITH_SYS_TIME,
--  respectively, but without actually checking for the ancient systems
--  where formerly those macros would not be defined.
-+*** AC_PROG_CC now enables C2011 mode if the compiler supports it.
- 
--  These macros were already labeled obsolescent in the manual.
-+  If not, it will fall back to C99 and C89, as before.  Similarly,
-+  AC_PROG_CXX now enables C++2011 if available, falling back on C++98.
- 
--- New macro, AC_CHECK_INCLUDES_DEFAULT.  It causes the checks normally
--  performed as a side-effect by AC_INCLUDES_DEFAULT to happen at that
--  point in 'configure', if they haven't already been done.  Autoupdate
-+*** New macro AC_C__GENERIC tests for C2011 _Generic support.
-+
-+*** AC_C_VARARRAYS has been aligned with C2011.
-+
-+  It now defines __STDC_NO_VLA__ if variable-length arrays are not
-+  supported but the compiler does not define __STDC_NO_VLA__.
-+
-+  For backward compatibility with Autoconf 2.61-2.69 AC_C_VARARRAYS
-+  still defines HAVE_C_VARARRAYS, but this result macro is obsolescent.
-+
-+*** New macro AC_CONFIG_MACRO_DIRS.
-+
-+  This macro can be used more than once and accepts a list of
-+  directories to search for local M4 macros.  With Automake 1.13 and
-+  later, use of this macro eliminates a reason to use ACLOCAL_AMFLAGS
-+  in Makefile.am.
-+
-+  The older AC_CONFIG_MACRO_DIR, which could only be used once, is
-+  still supported but considered deprecated.
-+
-+*** AC_USE_SYSTEM_EXTENSIONS knows about more extensions to enable.
-+
-+  System extensions will now be enabled on HP-UX, macOS, and MINIX.
-+  Optional ISO C library components (e.g. decimal floating point) will
-+  also be enabled.
-+
-+*** New compatibility macro AC_CHECK_INCLUDES_DEFAULT.
-+
-+  This macro runs the checks normally performed as a side-effect by
-+  AC_INCLUDES_DEFAULT, if they haven’t already been done.  Autoupdate
-   will replace certain obsolete constructs, whose only remaining
-   useful effect is to trigger those checks, with this macro.  It is
-   unlikely to be useful otherwise.
- 
--- The AC_CHECK_FUNCS_ONCE and AC_CHECK_HEADERS_ONCE macros now support
--  use with multiple languages, rather than forcing all checks in the
--  language used by the first encounter of the macro.
-+** Obsolete features and new warnings
-+
-+*** Warnings about obsolete constructs are now on by default.
-+    They can be turned off with ‘-Wno-obsolete’.
-+
-+*** Use of the long-deprecated name ‘configure.in’ for the autoconf
-+    input file now elicits a warning in the “obsolete” category.
-+
-+*** Use of the undocumented internal shell variables $as_echo and
-+    $as_echo_n now elicits a warning in the “obsolete” category.
-+    The macros AS_ECHO and AS_ECHO_N should be used instead.
-+
-+*** autoconf will now issue warnings (in the “syntax” category)
-+    if the input file is missing a call to AC_INIT and/or AC_OUTPUT.
-+
-+*** autoconf will now issue warnings (in the “syntax” category)
-+    for a non-literal URL argument to AC_INIT, and for a TARNAME
-+    argument to AC_INIT which is either non-literal or contains
-+    characters that should not be used in file names (e.g. ‘*’).
-+
-+*** AC_PROG_CC_STDC, AC_PROG_CC_C89, AC_PROG_CC_C99 are now obsolete.
-+
-+  Applications should use AC_PROG_CC.
-+
-+*** AC_HEADER_STDC and AC_HEADER_TIME are now stubs.
-+
-+  They still define the C preprocessor macros STDC_HEADERS and
-+  TIME_WITH_SYS_TIME, respectively, but they no longer check for the
-+  ancient, non-ISO-C90 compliant systems where formerly those macros
-+  would not be defined.  Autoupdate will remove them.
-+
-+  These macros were already labeled obsolete in the manual.
-+
-+*** AC_DIAGNOSE, AC_FATAL, AC_WARNING, and _AC_COMPUTE_INT are now
-+    replaced with modern equivalents by autoupdate.
-+
-+  These macros were already labeled obsolete in the manual.
-+
-+*** AC_CONFIG_HEADER is now diagnosed as obsolete, and replaced with
-+    AC_CONFIG_HEADERS by autoupdate.
-+
-+  This macro has been considered obsolete for many years and was not
-+  documented at all.
-+
-+*** The macro AC_OBSOLETE is obsolete.
-+
-+  Autoupdate will replace it with m4_warn([obsolete], [explanation]).
-+  If possible, macros using AC_OBSOLETE should be converted to use
-+  AU_DEFUN or AU_ALIAS instead, which enables autoupdate to replace
-+  them, but this has to be done by hand and is not always possible.
-+
-+  This macro has been considered obsolete for many years, but was not
-+  officially declared as such.
-+
-+*** Man pages for config.guess and config.sub are no longer provided.
-+
-+  They were moved to the master source tree for config.guess and
-+  config.sub.
-+
-+** Notable bug fixes
-+
-+*** config.log properly escapes arguments in the header comment.
-+
-+*** config.status --config output is now quoted in a more readable fashion.
-+
-+*** AC_PROG_CC is now defined via AC_DEFUN_ONCE.
- 
--- AS_INIT now writes only the base filename of the primary input file
--  into the generated script.  This avoids embedding (part of) the path
--  to the source directory in generated files, which hinders build
--  reproducibility.
-+  This means configure scripts will no longer check repeatedly for the
-+  C compiler under some combinations of macro use.
- 
--  We believe this was the only case where generated file contents could
--  change depending on the build environment.  If you find any other cases
--  please report them as bugs.
-+*** AC_CHECK_DECL and AC_CHECK_DECLS will now detect missing declarations for
-+    library functions that are also Clang compiler builtins.
- 
--- The obsolete and undocumented macro AC_CONFIG_HEADER is now
--  diagnosed as obsolete, and replaced with AC_CONFIG_HEADERS by
--  autoupdate.
-+*** AC_CHECK_FUNCS_ONCE and AC_CHECK_HEADERS_ONCE now support multiple
-+    programming languages.  They no longer perform all checks in the
-+    language active upon the first use of the macro.
- 
--- The obsolete macros AC_DIAGNOSE, AC_FATAL, AC_WARNING, and
--  _AC_COMPUTE_INT are now replaced with modern equivalents by
--  autoupdate.
-+*** AS_INIT no longer embeds (part of) the path to the source
-+    directory in generated files.
- 
--- The macro AC_OBSOLETE is obsolete.  Autoupdate will replace it with
--  m4_warn([obsolete], [explanation]).  If possible, macros using
--  AC_OBSOLETE should be converted to use AU_DEFUN or AU_ALIAS instead,
--  which enables autoupdate to replace them, but this has to be done by
--  hand and is not always possible.
-+  We believe this was the only case where generated file contents
-+  could change depending on the environment outside the source tree
-+  itself.  If you find any other cases please report them as bugs.
- 
--- AC_FC_LINE_LENGTH now documents the maximum portable length of
--  "unlimited" Fortran source code lines to be 250 columns, not 254.
-+*** AC_FC_LINE_LENGTH now documents the maximum portable length of
-+    “unlimited” Fortran source code lines to be 250 columns, not 254.
- 
--- AC_INIT now trims extra white space from its arguments.  For instance,
-+** Autotest enhancements
- 
--    AC_INIT([  GNU  Hello  ], [1.0])
-+*** Autotest provides a new macro AT_DATA_UNQUOTED, similar to AT_DATA
-+    but processing variable substitutions, command substitutions and
-+    backslashes in the contents argument.
- 
--  will set PACKAGE_NAME to “GNU Hello”.
-+*** AC_CONFIG_TESTDIR will automatically pass EXEEXT to a testsuite (via
-+    the atconfig file).
- 
--- AC_INIT will now issue warnings (in the “syntax” category) for a
--  non-literal URL argument, and for a TARNAME argument which is either
--  non-literal or contains characters that should not be used in file
--  names (e.g. ‘*’).
-+*** AT_TESTED arguments can use variable or command substitutions, including
-+    in particular $EXEEXT
- 
- * Noteworthy changes in release 2.69 (2012-04-24) [stable]
- 
--- 
-2.25.1
-
-
-From 1b52a8609b9417a188fee773b8f296c180c4cc73 Mon Sep 17 00:00:00 2001
-From: Zack Weinberg <zackw@panix.com>
-Date: Mon, 5 Oct 2020 16:22:25 -0400
-Subject: [PATCH 3/9] NEWS: Mention more bug fixes.
-
----
- NEWS | 70 ++++++++++++++++++++++++++++++++++++++++++++++++------------
- 1 file changed, 56 insertions(+), 14 deletions(-)
-
-diff --git a/NEWS b/NEWS
-index 93138f9b..55e938b3 100644
---- a/NEWS
-+++ b/NEWS
-@@ -4,6 +4,16 @@ GNU Autoconf NEWS - User visible changes.
- 
- ** Backward incompatibilities:
- 
-+*** Warnings about obsolete constructs are now on by default.
-+
-+  These warnings can be turned off with ‘-Wno-obsolete’.
-+
-+  Many of these warnings advise maintainers to run autoupdate.
-+  Be aware that autoupdate cannot solve all backward compatibility
-+  problems, and cannot completely solve all of the problems it does
-+  address.  A configure script edited by autoupdate is likely to
-+  need further manual fix-ups.
-+
- *** Many macros have become pickier about argument quotation.
- 
-   If you get a shell syntax error from your generated configure
-@@ -170,9 +180,6 @@ GNU Autoconf NEWS - User visible changes.
- 
- ** Obsolete features and new warnings
- 
--*** Warnings about obsolete constructs are now on by default.
--    They can be turned off with ‘-Wno-obsolete’.
--
- *** Use of the long-deprecated name ‘configure.in’ for the autoconf
-     input file now elicits a warning in the “obsolete” category.
- 
-@@ -229,31 +236,66 @@ GNU Autoconf NEWS - User visible changes.
- 
- ** Notable bug fixes
- 
--*** config.log properly escapes arguments in the header comment.
-+*** Compatible with current Automake, Libtool, Perl, Texinfo, and shells.
- 
--*** config.status --config output is now quoted in a more readable fashion.
-+  All of autoconf’s tools and generated scripts, and the build process
-+  and testsuite for autoconf itself, have been tested to work
-+  correctly with current versions of Automake, Libtool, Perl, Texinfo,
-+  bash, ksh93, zsh, and FreeBSD and NetBSD /bin/sh.
- 
--*** AC_PROG_CC is now defined via AC_DEFUN_ONCE.
-+  Generated configure scripts are expected to work reliably with an
-+  even wider variety of shells, including BusyBox sh and various
-+  proprietary Unixes’ /bin/sh, as long as they are minimally compliant
-+  with the Unix95 shell specification.  Notably, support for
-+  shell-script functions and the ‘printf’ builtin are required.
- 
--  This means configure scripts will no longer check repeatedly for the
--  C compiler under some combinations of macro use.
-+*** Checks compatible with current language standards and compilers.
- 
--*** AC_CHECK_DECL and AC_CHECK_DECLS will now detect missing declarations for
--    library functions that are also Clang compiler builtins.
-+  Many individual macros have been improved to accommodate changes in
-+  recent versions of the C and C++ language standards, and new
-+  features and quirks of commonly used compilers (both free and
-+  proprietary).
-+
-+*** Improved support for cross compilation.
-+
-+  Many individual macros have been improved to produce more accurate
-+  results when cross-compiling.
-+
-+*** Improved robustness against unusual build environments.
-+
-+  Many bugs have been fixed where generated configure scripts would
-+  fail catastrophically under unusual conditions, such as stdout being
-+  closed, or $TMPDIR not being an absolute path, or the root directory
-+  being mentioned in $PATH.
- 
- *** AC_CHECK_FUNCS_ONCE and AC_CHECK_HEADERS_ONCE now support multiple
-     programming languages.  They no longer perform all checks in the
-     language active upon the first use of the macro.
- 
--*** AS_INIT no longer embeds (part of) the path to the source
--    directory in generated files.
-+*** AC_CHECK_DECL and AC_CHECK_DECLS will now detect missing declarations for
-+    library functions that are also Clang compiler builtins.
-+
-+*** AC_PROG_CC is now defined via AC_DEFUN_ONCE.
-+
-+  This means configure scripts will no longer check repeatedly for the
-+  C compiler under some combinations of macro use.
-+
-+*** AC_HEADER_MAJOR detects the location of the major, minor, and
-+    makedev macros correctly under glibc 2.25 and later.
-+
-+*** AC_FC_LINE_LENGTH now documents the maximum portable length of
-+    “unlimited” Fortran source code lines to be 250 columns, not 254.
-+
-+*** AC_INIT and AS_INIT no longer embed (part of) the path to the
-+    source directory in generated files.
- 
-   We believe this was the only case where generated file contents
-   could change depending on the environment outside the source tree
-   itself.  If you find any other cases please report them as bugs.
- 
--*** AC_FC_LINE_LENGTH now documents the maximum portable length of
--    “unlimited” Fortran source code lines to be 250 columns, not 254.
-+*** config.log properly escapes arguments in the header comment.
-+
-+*** config.status --config output is now quoted in a more readable fashion.
- 
- ** Autotest enhancements
- 
--- 
-2.25.1
-
-
-From 09346f1a776b1bba3634f2d3ccf30460fc372d44 Mon Sep 17 00:00:00 2001
-From: Zack Weinberg <zackw@panix.com>
-Date: Wed, 7 Oct 2020 09:01:16 -0400
-Subject: [PATCH 4/9] =?UTF-8?q?Don=E2=80=99t=20issue=20obsoletion=20warnin?=
- =?UTF-8?q?gs=20for=20AC=5FDIAGNOSE.?=
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-AC_DIAGNOSE is used in several extremely popular add-on macros,
-notably AM_INIT_AUTOMAKE, AM_GNU_GETTEXT, and AC_LIBTOOL_DLOPEN.
-Until newer versions of these macros are available, -Wobsolete
-warnings for AC_DIAGNOSE will be unhelpful noise.
-
-Therefore, make it so AC_DIAGNOSE(...) will still be replaced with
-m4_warn(...) by autoupdate, but autoconf runs will not complain about
-AC_DIAGNOSE.  The bulk of the patch is augmenting AU_DEFUN so that it
-can define a “silent” autoupdate replacement, and documenting the new
-feature.
-
-* lib/autoconf/autoupdate.m4 (AU_DEFUN): Add a fourth argument, SILENT,
-  which must be either empty or the word ‘silent’.  If it is ‘silent’,
-  the macro being defined will *not* issue a -Wobsolete warning when
-  expanded by autoconf.
-  Tweak quotation to prevent emacs’ parenthesis matching from getting
-  confused.
-  (AU_ALIAS): Add the SILENT argument here as well.
-
-* lib/autoconf/general.m4 (AC_DIAGNOSE): Define as a silent AU_DEFUN.
-  Add commentary explaining why this was done and when it can be
-  changed back.
-
-* doc/autoconf.texi (AU_DEFUN, AU_ALIAS): Revise; document new SILENT
-  argument.
----
- doc/autoconf.texi          | 64 ++++++++++++++++++++++++++------------
- lib/autoconf/autoupdate.m4 | 47 ++++++++++++++++++----------
- lib/autoconf/general.m4    | 12 ++++---
- 3 files changed, 82 insertions(+), 41 deletions(-)
-
-diff --git a/doc/autoconf.texi b/doc/autoconf.texi
-index dea85e4a..9f05cee8 100644
---- a/doc/autoconf.texi
-+++ b/doc/autoconf.texi
-@@ -14888,29 +14888,53 @@ with their modern implementation.
- Autoconf provides a simple means to obsolete a macro.
- 
- @anchor{AU_DEFUN}
--@defmac AU_DEFUN (@var{old-macro}, @var{implementation}, @ovar{message})
-+@defmac AU_DEFUN (@var{old-macro}, @var{implementation}, @ovar{message}, @ovar{silent})
- @auindex{DEFUN}
--Define @var{old-macro} as @var{implementation}.  The only difference
--with @code{AC_DEFUN} is that the user is warned that
--@var{old-macro} is now obsolete.
--
--If she then uses @command{autoupdate}, the call to @var{old-macro} is
--replaced by the modern @var{implementation}.  @var{message} should
--include information on what to do after running @command{autoupdate};
--@command{autoupdate} prints it as a warning, and includes it
--in the updated @file{configure.ac} file.
-+Define @var{old-macro} as @var{implementation}, just like
-+@code{AC_DEFUN}, but also declare @var{old-macro} to be obsolete.
-+When @command{autoupdate} is run, occurrences of @var{old-macro} will
-+be replaced by the text of @var{implementation} in the updated
-+@file{configure.ac} file.
-+
-+If a simple textual replacement is not enough to finish the job of
-+updating a @file{configure.ac} to modern style, provide instructions for
-+whatever additional manual work is required as @var{message}.  These
-+instructions will be printed by @command{autoupdate}, and embedded in the
-+updated @file{configure.ac} file, next to the text of @var{implementation}.
-+
-+Normally, @command{autoconf} will also issue a warning (in the
-+``obsolete'' category) when it expands @var{old-macro}.  This warning
-+does not include @var{message}; it only advises the maintainer to run
-+@command{autoupdate}.  If it is inappropriate to issue this warning, set
-+the @var{silent} argument to the word @code{silent}.  One might want to
-+use a silent @code{AU_DEFUN} when @var{old-macro} is used in a
-+widely-distributed third-party macro.  If that macro's maintainers are
-+aware of the need to update their code, it's unnecessary to nag all
-+of the transitive users of @var{old-macro} as well.  This capability
-+was added to @code{AU_DEFUN} in Autoconf 2.70; older versions of
-+autoconf will ignore the @var{silent} argument and issue the warning
-+anyway.
-+
-+@strong{Caution:} If @var{implementation} contains M4 or M4sugar macros,
-+they will be evaluated when @command{autoupdate} is run, not emitted
-+verbatim like the rest of @var{implementation}.  This cannot be avoided
-+with extra quotation, because then @var{old-macro} will not work when
-+it is called normally.  See the definition of @code{AC_FOREACH} in
-+@file{general.m4} for a workaround.
-+@end defmac
-+
-+@defmac AU_ALIAS (@var{old-name}, @var{new-name}, @ovar{silent})
-+@auindex{ALIAS}
-+A shorthand version of @code{AU_DEFUN}, to be used when a macro has
-+simply been renamed.  @command{autoupdate} will replace calls to
-+@var{old-name} with calls to @var{new-name}, keeping any arguments
-+intact.  No instructions for additional manual work will be printed.
- 
--The details of this macro are hairy: if @command{autoconf} encounters an
--@code{AU_DEFUN}ed macro, all macros inside its second argument are expanded
--as usual.  However, when @command{autoupdate} is run, only M4 and M4sugar
--macros are expanded here, while all other macros are disabled and
--appear literally in the updated @file{configure.ac}.
--@end defmac
-+The @var{silent} argument works the same as the @var{silent} argument
-+to @code{AU_DEFUN}.  It was added to @code{AU_ALIAS} in Autoconf 2.70.
- 
--@defmac AU_ALIAS (@var{old-name}, @var{new-name})
--@auindex{ALIAS}
--Used if the @var{old-name} is to be replaced by a call to @var{new-macro}
--with the same parameters.  This happens for example if the macro was renamed.
-+@strong{Caution:} @code{AU_ALIAS} cannot be used when @var{new-name} is
-+an M4 or M4sugar macro.  See above.
- @end defmac
- 
- @node Coding Style
-diff --git a/lib/autoconf/autoupdate.m4 b/lib/autoconf/autoupdate.m4
-index 109d8949..a3e13a69 100644
---- a/lib/autoconf/autoupdate.m4
-+++ b/lib/autoconf/autoupdate.m4
-@@ -36,20 +36,27 @@
- 
- # AU_DEFINE(NAME, CODE)
- # ---------------------
--# Define the macro NAME so that it expand to CODE only when
-+# Define the macro NAME so that it expands to CODE only when
- # autoupdate is running.  This is achieved with traces in
- # autoupdate itself, so this macro expands to nothing.
- #
- m4_define([AU_DEFINE], [])
- 
--# AU_DEFUN(NAME, NEW-CODE, [MESSAGE])
-+# AU_DEFUN(NAME, NEW-CODE, [MESSAGE], [SILENT])
- # -----------------------------------
--# Declare that the macro NAME is now obsoleted, and should be replaced
--# by NEW-CODE.  Tell the user she should run autoupdate, and when
--# autoupdate is run, emit MESSAGE as a warning and include it in
--# the updated configure.ac file.
-+# Define NAME as a macro whose expansion is NEW-CODE, just like
-+# AC_DEFUN, but also declare NAME as obsolete.  When autoupdate
-+# is run, occurrences of NAME will be replaced with NEW-CODE in
-+# the updated configure.ac.
- #
--# Also define NAME as a macro which code is NEW-CODE.
-+# If MESSAGE is not empty, it should be instructions for manual edits
-+# to configure.ac that are required to finish the job of replacing NAME.
-+# autoupdate will print MESSAGE, and [m4_warn([obsolete], [MESSAGE])]
-+# will be placed next to NEW-CODE in the updated configure.ac.
-+#
-+# SILENT must be either empty or the word "silent".  If it is empty,
-+# *autoconf* will issue a generic obsolete-category warning when NAME
-+# is expanded, telling the maintainer to run autoupdate.
- #
- # This allows sharing the same code for both supporting obsoleted macros,
- # and to update a configure.ac.
-@@ -62,8 +69,8 @@ m4_define([AU_DEFUN],
- # unexpanded into the updated configure.ac.
- AU_DEFINE([$1],
- [m4_ifval([$3], [_au_warn_$1([$3])[m4_warn([obsolete],
--[$3])dnl]
--])dnl
-+[$3])dnl
-+]])dnl
- $2])
- 
- # This is an auxiliary macro that is also run when
-@@ -76,22 +83,28 @@ AU_DEFINE([_au_warn_$1],
- m4_define([_au_warn_$1], [])])
- 
- # Finally, this is the expansion that is picked up by
--# autoconf.  It tells the user to run autoupdate, and
--# then outputs the replacement expansion.  We do not care
--# about autoupdate's warning because that contains
--# information on what to do *after* running autoupdate.
--AC_DEFUN([$1],
-+# autoconf, causing NAME to expand to NEW-CODE, plus
-+# (if SILENT is not "silent") a m4_warning telling the
-+# maintainer to run autoupdate.  We don't issue MESSAGE
-+# from autoconf, because that's instructions for what
-+# to do *after* running autoupdate.
-+m4_case([$4],
-+  [silent], [AC_DEFUN([$1], [$2])],
-+  [],       [AC_DEFUN([$1],
- 	 [m4_warn([obsolete], [The macro `$1' is obsolete.
- You should run autoupdate.])dnl
--$2])])
-+$2])],
-+  [m4_fatal([SILENT argument to `$0' must be either empty or `silent'])]dnl
-+)])
- 
- 
--# AU_ALIAS(OLD-NAME, NEW-NAME)
-+# AU_ALIAS(OLD-NAME, NEW-NAME, [SILENT])
- # ----------------------------
- # The OLD-NAME is no longer used, just use NEW-NAME instead.  There is
- # little difference with using AU_DEFUN but the fact there is little
- # interest in running the test suite on both OLD-NAME and NEW-NAME.
- # This macro makes it possible to distinguish such cases.
-+# The SILENT argument works the same as for AU_DEFUN.
- #
- # Do not use `defn' since then autoupdate would replace an old macro
- # call with the new macro body instead of the new macro call.
-@@ -102,7 +115,7 @@ $2])])
- # matters with poorly written macros which test for $# = 0.
- #
- m4_define([AU_ALIAS],
--[AU_DEFUN([$1], _AU_ALIAS_BODY([$], [$2]))])
-+[AU_DEFUN([$1], _AU_ALIAS_BODY([$], [$2]), [], [$4])])
- 
- # The body for the AU_DEFUN above should look like:
- #	[m4_if($#, 0, [NEW-NAME], [NEW-NAME($@)])]
-diff --git a/lib/autoconf/general.m4 b/lib/autoconf/general.m4
-index de5633d8..eaa1d91b 100644
---- a/lib/autoconf/general.m4
-+++ b/lib/autoconf/general.m4
-@@ -2324,10 +2324,14 @@ m4_append_uniq([_AC_SUBST_FILES], [$1], [
- # The double definitions are necessary because autoupdate expands m4_
- # macros, so we have to double-quote the replacements, but then they
- # won't work in a normal autoconf run.
--AU_DEFUN([AC_DIAGNOSE], [[m4_warn($@)]])
--AC_DEFUN([AC_DIAGNOSE], [m4_warn($@)dnl
--m4_warn([obsolete], [The macro `$0' is obsolete.
--You should run autoupdate.])])
-+
-+# 2020-10-06 / autoconf 2.70: Widely used third-party macros
-+# (among others, from automake, libtool, and gettext) use AC_DIAGNOSE,
-+# so we temporarily don't issue an obsoletion warning for it.
-+# Revisit after third parties have had a chance to update their macros
-+# and make releases.
-+AU_DEFUN([AC_DIAGNOSE], [[m4_warn($@)]], [], [silent])
-+AC_DEFUN([AC_DIAGNOSE], [m4_warn($@)])
- 
- AU_DEFUN([AC_FATAL], [[m4_fatal($@)]])
- AC_DEFUN([AC_FATAL], [m4_fatal($@)dnl
--- 
-2.25.1
-
-
-From 326c9a547423d25c621bc5c0ef76edbf6eda8c92 Mon Sep 17 00:00:00 2001
-From: Zack Weinberg <zackw@panix.com>
-Date: Fri, 9 Oct 2020 09:02:47 -0400
-Subject: [PATCH 5/9] Fix regressions when using the C++ compiler to perform
- tests.
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-The Debian project has done an archive rebuild using autoconf 2.69c,
-which found several serious regressions from 2.69 where test programs
-used to be accepted by a C++ compiler, but are now rejected.  Part of
-the problem is that newer C++ compilers are more likely to reject
-“traditional” sloppy C, but part of it is that bug fixes since 2.69
-did not consider the possibility of test macros being used with
-AC_LANG([C++]) in effect.
-
-I’m still working on test suite improvements that will catch these
-regressions in the future, but I don’t see any reason to delay the
-actual bugfixes.  (I’ve gotten far enough on the test suite changes
-that I know they _will_ catch the bugs.)
-
-* NEWS: Document that AC_FUNC_STRERROR_R no longer tries to detect a
-  strerror_r that exists in the C library but isn’t declared by string.h.
-
-* lib/autoconf/c.m4
-  (AC_LANG_CALL(C++)): New macro.  Use a more robust technique for
-  avoiding a type conflict with any intrinsic prototype.
-  (AC_LANG_CALL(C)): Remove #ifdef __cplusplus, this macro is no longer
-  used to generate C++ code.
-
-* lib/autoconf/functions.m4
-  (AC_FUNC_CLOSEDIR_VOID): Rely on <dirent.h> to declare closedir.
-  Simplify test program.  Use AC_COMPILE_IFELSE, not AC_RUN_IFELSE.
-  (_AC_FUNC_MALLOC_IF, _AC_FUNC_REALLOC_IF): Use void *, not char *,
-  for variable holding a value returned by malloc/realloc respectively.
-  (AC_FUNC_STRERROR_R): Don’t AC_CHECK_FUNCS_ONCE strerror_r.
-  AC_DEFINE HAVE_STRERROR_R if and only if we are also going to define
-  HAVE_DECL_STRERROR_R.  Remove AC_RUN_IFELSE fallback when strerror_r
-  is not declared.
-
-* lib/autoconf/headers.m4 (AC_USG): Use "", not 0, for the first
-  argument to rindex.
----
- NEWS                      | 10 ++++++
- lib/autoconf/c.m4         | 18 ++++++++--
- lib/autoconf/functions.m4 | 71 +++++++++++++++++----------------------
- lib/autoconf/headers.m4   |  2 +-
- 4 files changed, 56 insertions(+), 45 deletions(-)
-
-diff --git a/NEWS b/NEWS
-index 55e938b3..be82eab9 100644
---- a/NEWS
-+++ b/NEWS
-@@ -124,6 +124,16 @@ GNU Autoconf NEWS - User visible changes.
-   support for Solaris 2.4.  Most programs will want to avoid ‘vfork’
-   on this OS because of this bug.
- 
-+*** AC_FUNC_STRERROR_R assumes strerror_r is unavailable if it’s not declared.
-+
-+  The fallback technique it used to probe strerror_r’s return type
-+  when the function was present in the C library, but not declared by
-+  <string.h>, was fragile and did not work at all when cross-compiling.
-+  The systems where this fallback was necessary were all obsolete.
-+
-+  Programs that use AC_FUNC_STRERROR_R should make sure to test the
-+  preprocessor macro HAVE_DECL_STRERROR_R before using strerror_r at all.
-+
- ** New features
- 
- *** Configure scripts now support a ‘--runstatedir’ option.
 diff --git a/lib/autoconf/c.m4 b/lib/autoconf/c.m4
-index be5e4148..de40b8ca 100644
+index ca63dc58..a31d2d33 100644
 --- a/lib/autoconf/c.m4
 +++ b/lib/autoconf/c.m4
-@@ -127,9 +127,6 @@ m4_if([$2], [main], ,
- [/* Override any GCC internal prototype to avoid an error.
-    Use char because int might match the return type of a GCC
-    builtin and then its argument prototype would still apply.  */
--#ifdef __cplusplus
--extern "C"
--#endif
- char $2 ();])], [return $2 ();])])
- 
- 
-@@ -240,6 +237,21 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
- ])
- 
- 
-+# AC_LANG_CALL(C++)(PROLOGUE, FUNCTION)
-+# -------------------------------------
-+m4_define([AC_LANG_CALL(C++)],
-+[AC_LANG_PROGRAM([[$1
-+// We do not know the function signature of the real $2.
-+// Declare it in a namespace so the compiler doesn't recognize it
-+// (with, most likely, a clashing prototype); the 'extern "C"' will
-+// hide the namespace from the linker, so it will still look for the
-+// real (global) $2.
-+namespace conftest {
-+  extern "C" void $2 ();
-+}]],
-+[[conftest::$2 (); return 0;]])])
-+
-+
- # AC_LANG_CPLUSPLUS
- # -----------------
- AU_DEFUN([AC_LANG_CPLUSPLUS], [AC_LANG(C++)])
+@@ -1993,8 +1993,8 @@ AC_DEFUN([AC_C_FLEXIBLE_ARRAY_MEMBER],
+ 	    #include <stddef.h>
+ 	    struct s { int n; double d[]; };]],
+ 	  [[int m = getchar ();
+-	    struct s *p = malloc (offsetof (struct s, d)
+-				  + m * sizeof (double));
++	    struct s *p = (struct s *) malloc (offsetof (struct s, d)
++					       + m * sizeof (double));
+ 	    p->d[0] = 0.0;
+ 	    return p->d != (double *) NULL;]])],
+        [ac_cv_c_flexmember=yes],
 diff --git a/lib/autoconf/functions.m4 b/lib/autoconf/functions.m4
-index aa560a63..4598b408 100644
+index e474984f..a91eeebc 100644
 --- a/lib/autoconf/functions.m4
 +++ b/lib/autoconf/functions.m4
-@@ -509,25 +509,23 @@ fi
- # AC_FUNC_CLOSEDIR_VOID
- # ---------------------
- # Check whether closedir returns void, and #define CLOSEDIR_VOID in
--# that case.
-+# that case.  Note: the test program *fails* to compile when closedir
-+# returns void.
- AC_DEFUN([AC_FUNC_CLOSEDIR_VOID],
- [AC_REQUIRE([AC_HEADER_DIRENT])dnl
- AC_CACHE_CHECK([whether closedir returns void],
- 	       [ac_cv_func_closedir_void],
--[AC_RUN_IFELSE([AC_LANG_PROGRAM([AC_INCLUDES_DEFAULT
-+[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
- #include <$ac_header_dirent>
--#ifndef __cplusplus
--int closedir ();
--#endif
--],
--				[[return closedir (opendir (".")) != 0;]])],
-+]], [[
-+  return closedir(0);
-+]])],
- 	       [ac_cv_func_closedir_void=no],
--	       [ac_cv_func_closedir_void=yes],
- 	       [ac_cv_func_closedir_void=yes])])
- if test $ac_cv_func_closedir_void = yes; then
-   AC_DEFINE(CLOSEDIR_VOID, 1,
- 	    [Define to 1 if the `closedir' function returns void instead
--	     of `int'.])
-+	     of int.])
- fi
- ])
- 
-@@ -952,13 +950,12 @@ AC_DEFUN([_AC_FUNC_MALLOC_IF],
- [AC_REQUIRE([AC_CANONICAL_HOST])dnl for cross-compiles
- AC_CACHE_CHECK([for GNU libc compatible malloc], ac_cv_func_malloc_0_nonnull,
- [AC_RUN_IFELSE(
--[AC_LANG_PROGRAM(
--[[#include <stdlib.h>
--]],
--		 [char *p = malloc (0);
--		  int result = !p;
--		  free (p);
--		  return result;])],
-+[AC_LANG_PROGRAM([[#include <stdlib.h>
-+                 ]],
-+		 [[void *p = malloc (0);
-+		   int result = !p;
-+		   free (p);
-+		   return result;]])],
- 	       [ac_cv_func_malloc_0_nonnull=yes],
- 	       [ac_cv_func_malloc_0_nonnull=no],
- 	       [case "$host_os" in # ((
-@@ -1459,13 +1456,12 @@ AC_DEFUN([_AC_FUNC_REALLOC_IF],
- [AC_REQUIRE([AC_CANONICAL_HOST])dnl for cross-compiles
- AC_CACHE_CHECK([for GNU libc compatible realloc], ac_cv_func_realloc_0_nonnull,
- [AC_RUN_IFELSE(
--[AC_LANG_PROGRAM(
--[[#include <stdlib.h>
--]],
--		 [char *p = realloc (0, 0);
--		  int result = !p;
--		  free (p);
--		  return result;])],
-+[AC_LANG_PROGRAM([[#include <stdlib.h>
-+                 ]],
-+		 [[void *p = realloc (0, 0);
-+		   int result = !p;
-+		   free (p);
-+		   return result;]])],
- 	       [ac_cv_func_realloc_0_nonnull=yes],
- 	       [ac_cv_func_realloc_0_nonnull=no],
- 	       [case "$host_os" in # ((
-@@ -1692,33 +1688,26 @@ AU_ALIAS([AM_FUNC_STRTOD], [AC_FUNC_STRTOD])
- AN_FUNCTION([strerror_r], [AC_FUNC_STRERROR_R])
- AC_DEFUN([AC_FUNC_STRERROR_R],
- [AC_CHECK_DECLS_ONCE([strerror_r])
--AC_CHECK_FUNCS_ONCE([strerror_r])
-+if test $ac_cv_have_decl_strerror_r = yes; then
-+  # For backward compatibility's sake, define HAVE_STRERROR_R.
-+  # (We used to run AC_CHECK_FUNCS_ONCE for strerror_r, as well
-+  # as AC_CHECK_DECLS_ONCE.)
-+  AC_DEFINE([HAVE_STRERROR_R], [1], [Define if you have `strerror_r'.])
-+fi
-+
- AC_CACHE_CHECK([whether strerror_r returns char *],
--	       ac_cv_func_strerror_r_char_p,
--   [
-+	       [ac_cv_func_strerror_r_char_p], [
+@@ -1699,7 +1699,7 @@ AC_CACHE_CHECK([whether strerror_r returns char *],
+ 	       [ac_cv_func_strerror_r_char_p], [
      ac_cv_func_strerror_r_char_p=no
      if test $ac_cv_have_decl_strerror_r = yes; then
--      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([AC_INCLUDES_DEFAULT],
-+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
+-      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
++      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([@%:@include <string.h>],
  	[[
  	  char buf[100];
  	  char x = *strerror_r (0, buf, sizeof buf);
- 	  char *p = strerror_r (0, buf, sizeof buf);
- 	  return !p || x;
- 	]])],
--			ac_cv_func_strerror_r_char_p=yes)
--    else
--      # strerror_r is not declared.  Choose between
--      # systems that have relatively inaccessible declarations for the
--      # function.  BeOS and DEC UNIX 4.0 fall in this category, but the
--      # former has a strerror_r that returns char*, while the latter
--      # has a strerror_r that returns `int'.
--      # This test should segfault on the DEC system.
--      AC_RUN_IFELSE([AC_LANG_PROGRAM([AC_INCLUDES_DEFAULT
--	extern char *strerror_r ();],
--	[[char buf[100];
--	  char x = *strerror_r (0, buf, sizeof buf);
--	  return ! isalpha (x);]])],
--		    ac_cv_func_strerror_r_char_p=yes, , :)
-+			[ac_cv_func_strerror_r_char_p=yes])
-+
-     fi
-   ])
- if test $ac_cv_func_strerror_r_char_p = yes; then
-diff --git a/lib/autoconf/headers.m4 b/lib/autoconf/headers.m4
-index 21b37197..3b97a185 100644
---- a/lib/autoconf/headers.m4
-+++ b/lib/autoconf/headers.m4
-@@ -776,7 +776,7 @@ AU_DEFUN([AC_USG],
- [# Obsolete code to be removed.
- AC_MSG_CHECKING([for BSD string and memory functions])
- AC_LINK_IFELSE([AC_LANG_PROGRAM([[@%:@include <strings.h>]],
--				[[rindex(0, 0); bzero(0, 0);]])],
-+				[[rindex("", 0); bzero(0, 0);]])],
- 	       [AC_MSG_RESULT(yes)],
- 	       [AC_MSG_RESULT(no)
- 		AC_DEFINE(USG, 1,
--- 
-2.25.1
-
-
-From d85fc04ed3961f4195b632cd81b89a51216dbea7 Mon Sep 17 00:00:00 2001
-From: Zack Weinberg <zackw@panix.com>
-Date: Sat, 10 Oct 2020 14:07:53 -0400
-Subject: [PATCH 6/9] _AS_PATH_WALK: Use AS_IF for IF-NOT-FOUND argument.
-
-The construct _AS_PATH_WALK was using to conditionally execute its
-IF-NOT-FOUND argument, was a little too fragile: relatively natural
-variations in usage, such as putting the final `])` on a line by
-itself, could cause shell syntax errors.  Use AS_IF instead.
-
-* lib/m4sugar/m4sh.m4: Use AS_IF to execute IF-NOT-FOUND conditionally.
----
- lib/m4sugar/m4sh.m4 | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
+diff --git a/lib/autoconf/general.m4 b/lib/autoconf/general.m4
+index 4ec2317c..b74a441f 100644
+--- a/lib/autoconf/general.m4
++++ b/lib/autoconf/general.m4
+@@ -1789,7 +1789,7 @@ AC_DEFUN([AC_CONFIG_AUX_DIRS],
+ # required auxiliary files, the script will bomb out.  This macro may also
+ # be used as a trace hook by tools that wish to identify all of the required
+ # auxiliary files.
+-m4_define([AC_REQUIRE_AUX_FILE],
++AC_DEFUN([AC_REQUIRE_AUX_FILE],
+ [AS_LITERAL_WORD_IF([$1],
+   [m4_do(
+     [AC_REQUIRE([_AC_INIT_AUX_DIR])],
+diff --git a/lib/autoconf/programs.m4 b/lib/autoconf/programs.m4
+index b352ce24..63e07043 100644
+--- a/lib/autoconf/programs.m4
++++ b/lib/autoconf/programs.m4
+@@ -747,6 +747,9 @@ fi])])
+ AC_DEFUN([_AC_PROG_LEX_YYTEXT_DECL],
+ [cat >conftest.l <<_ACEOF[
+ %{
++#ifdef __cplusplus
++extern "C"
++#endif
+ int yywrap(void);
+ %}
+ %%
 diff --git a/lib/m4sugar/m4sh.m4 b/lib/m4sugar/m4sh.m4
-index bd4d2b9e..a1c1cd47 100644
+index a1c1cd47..8f96eb7b 100644
 --- a/lib/m4sugar/m4sh.m4
 +++ b/lib/m4sugar/m4sh.m4
-@@ -1363,7 +1363,7 @@ do
-   m4_ifvaln([$3], [as_found=false])dnl
- done
- IFS=$as_save_IFS
--m4_ifvaln([$3], [$as_found || { $3; }])dnl
-+m4_ifvaln([$3], [AS_IF([$as_found], [], [$3])])dnl
+@@ -468,6 +468,15 @@ AS_IF([( set x; as_fn_ret_success y && test x = "[$]1" )], [],
+ test x$exitcode = x0[]])# _AS_SHELL_FN_WORK
+ 
+ 
++# _AS_MODERN_CMDSUBST_WORKS
++# -------------------------
++# This is a spy to detect "in the wild" shells that do not support
++# the newer $(...) form of command substitutions.
++m4_define([_AS_MODERN_CMDSUBST_WORKS],
++[blah=$(echo $(echo blah))
++test x"$blah" = xblah])
++
++
+ # _AS_SHELL_SANITIZE
+ # ------------------
+ # This is the prolog that is emitted by AS_INIT and AS_INIT_GENERATED;
+@@ -544,6 +553,7 @@ m4_define([AS_SHELL_SANITIZE],
+ m4_provide_if([AS_INIT], [],
+ [m4_provide([AS_INIT])
+ _AS_DETECT_REQUIRED([_AS_SHELL_FN_WORK])
++_AS_DETECT_REQUIRED([_AS_MODERN_CMDSUBST_WORKS])
+ _AS_DETECT_REQUIRED([_AS_TEST_X_WORKS])
+ _AS_DETECT_BETTER_SHELL
+ _AS_UNSET_PREPARE
+@@ -2177,6 +2187,7 @@ m4_divert_text([M4SH-INIT-FN], [m4_text_box([M4sh Shell Functions.])])
+ m4_divert([BODY])dnl
+ m4_text_box([Main body of script.])
+ _AS_DETECT_REQUIRED([_AS_SHELL_FN_WORK])dnl
++_AS_DETECT_REQUIRED([_AS_MODERN_CMDSUBST_WORKS])dnl
+ _AS_DETECT_REQUIRED([_AS_TEST_X_WORKS])dnl
+ AS_REQUIRE([_AS_UNSET_PREPARE], [], [M4SH-INIT-FN])dnl
  ])
+diff --git a/tests/tools.at b/tests/tools.at
+index ba443816..967d9be1 100644
+--- a/tests/tools.at
++++ b/tests/tools.at
+@@ -450,7 +450,7 @@ _AS_BAR
+ [dnl]
+ ]])
  
+-dnl This test needs autom4te's cache, in spite of any ~/.autom4te.cfg.
++# This test needs autom4te's cache, in spite of any ~/.autom4te.cfg.
+ AT_DATA([.autom4te.cfg], [[
+ begin-language: "Autoconf"
+ args: --cache=autom4te.cache
+@@ -460,6 +460,10 @@ args: --cache=autom4te.cache
+ end-language: "Autoconf-without-aclocal-m4"
+ ]])
  
--- 
-2.25.1
-
-
-From 3cdc910d229d33e5a98e66b64ee1506a0c2e262c Mon Sep 17 00:00:00 2001
-From: Paul Eggert <eggert@cs.ucla.edu>
-Date: Sun, 11 Oct 2020 23:53:41 -0700
-Subject: [PATCH 7/9] doc: improve AS_CASE, AS_IF doc
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-See the thread containing:
-https://lists.gnu.org/r/bug-gnulib/2020-10/msg00033.html
-* doc/autoconf.texi: Distinguish between Solaris 10 and later.
-(Balancing Parentheses): Mention the Posix syntax for ‘case’,
-typically a better solution nowadays.
-(AS_CASE, AS_IF): Mention AC_REQUIRE, portability, parens.
-(Prerequisite Macros): Tighten up example and make it less dated.
-Say that AS_CASE and AS_IF are not needed outside macros.
-* NEWS: Don’t mention AS_FOR.  It’s not documented, and for
-good reason since it is so ... quirky.
----
- NEWS              |   8 ++--
- doc/autoconf.texi | 115 +++++++++++++++++++++++++++++-----------------
- 2 files changed, 77 insertions(+), 46 deletions(-)
-
-diff --git a/NEWS b/NEWS
-index be82eab9..356a28b0 100644
---- a/NEWS
-+++ b/NEWS
-@@ -34,10 +34,10 @@ GNU Autoconf NEWS - User visible changes.
-      variables used later in the configure script, or in generated
-      Makefiles.
- 
--   - Autoconf macros that use AC_REQUIRE internally, are not safe to
--     use inside of hand-written shell control-flow constructs.  Use
--     AS_IF, AS_CASE, AS_FOR, etc. instead.  (See the “Prerequisite
--     Macros” section of the manual for further explanation.)
-+   - Autoconf macros that use AC_REQUIRE are not safe to use in shell
-+     control-flow constructs that appear outside of macros defined by
-+     AC_DEFUN.  Use AS_IF, AS_CASE, etc. instead.  (See the
-+     “Prerequisite Macros” section of the manual for details.)
- 
-      The set of macros that use AC_REQUIRE internally may change from
-      release to release.  The only macros that are guaranteed *not* to
-diff --git a/doc/autoconf.texi b/doc/autoconf.texi
-index 9f05cee8..9a52fbdb 100644
---- a/doc/autoconf.texi
-+++ b/doc/autoconf.texi
-@@ -11024,9 +11024,11 @@ Cambridge University computer lab at the time.
- @cindex parentheses, balancing
- @cindex unbalanced parentheses, managing
- 
--One of the pitfalls of portable shell programming is that @command{case}
--statements require unbalanced parentheses (@pxref{case, , Limitations of
--Shell Builtins}).  With syntax highlighting
-+One of the pitfalls of portable shell programming is that
-+if you intend your script to run with obsolescent shells,
-+@command{case} statements require unbalanced parentheses.
-+@xref{case, , Limitations of Shell Builtins}.
-+With syntax highlighting
- editors, the presence of unbalanced @samp{)} can interfere with editors
- that perform syntax highlighting of macro contents based on finding the
- matching @samp{(}.  Another concern is how much editing must be done
-@@ -11066,6 +11068,19 @@ variations for defining @code{my_case} to be more robust, even when used
- without proper quoting, each with some benefits and some drawbacks.
- 
- @itemize @w{}
-+@item Use left parenthesis before pattern
-+@example
-+AC_DEFUN([my_case],
-+[case $file_name in
-+  (*.c) echo "C source code";;
-+esac])
-+@end example
-+@noindent
-+This is simple and provides balanced parentheses.  Although this is not
-+portable to obsolescent shells (notably Solaris 10 @command{/bin/sh}),
-+platforms with these shells invariably have a more-modern shell
-+available somewhere so this approach typically suffices nowadays.
++# Delay to make sure the cache files generated by the next command are
++# considered newer than configure.ac.
++sleep 2
 +
- @item Creative literal shell comment
- @example
- AC_DEFUN([my_case],
-@@ -13758,8 +13773,15 @@ log files to separate distinct phases of script operation.
- Expand into a shell @samp{case} statement, where @var{word} is matched
- against one or more patterns.  @var{if-matched} is run if the
- corresponding pattern matched @var{word}, else @var{default} is run.
--Avoids several portability issues (@pxref{case, , Limitations of Shell
--Builtins}).
-+@xref{Prerequisite Macros} for why
-+this macro should be used instead of plain @samp{case} in code
-+outside of an @code{AC_DEFUN} macro, when the contents of the
-+@samp{case} use @code{AC_REQUIRE} directly or indirectly.
-+@xref{case, , Limitations of Shell Builtins},
-+for how this macro avoids some portability issues.
-+@xref{Balancing Parentheses}
-+for how this macro lets you write code with balanced parentheses
-+even if your code must run on obsolescent shells.
- @end defmac
- 
- @c Deprecated, to be replaced by a better API
-@@ -13881,6 +13903,10 @@ blanks, or expand to a nonempty shell command.  For example,
- argument contains the nonblank characters @code{[]} which expand to
- nothing.  This restriction on @var{run-if-false} also applies to other
- macros with ``if-false'' arguments denoting shell commands.
+ AT_CHECK_AUTOCONF([], 1, [],
+ [[trailer.m4: warning: AC_INIT was never used
+ trailer.m4: warning: AC_OUTPUT was never used
+@@ -471,6 +475,11 @@ configure.ac:4: error: possibly undefined macro: AS@&t@_FOO
+ configure.ac:5: error: possibly undefined macro: _AS@&t@_BAR
+ configure.ac:6: error: possibly undefined macro: d@&t@nl
+ ]])
 +
-+This macro should be used instead of plain @samp{if} in code
-+outside of an @code{AC_DEFUN} macro, when the contents of the @samp{if}
-+use @code{AC_REQUIRE} directly or indirectly (@pxref{Prerequisite Macros}).
- @end defmac
- 
- @defmac AS_MKDIR_P (@var{file-name})
-@@ -14635,7 +14661,7 @@ In particular, @samp{AC_REQUIRE([FOO])} is not replaced with the body of
- @example
- @group
- AC_DEFUN([TRAVOLTA],
--[test "$body_temperature_in_celsius" -gt "38" &&
-+[test "$body_temperature_in_celsius" -gt 38 &&
-   dance_floor=occupied])
- AC_DEFUN([NEWTON_JOHN],
- [test "x$hair_style" = xcurly &&
-@@ -14644,7 +14670,7 @@ AC_DEFUN([NEWTON_JOHN],
- 
- @group
- AC_DEFUN([RESERVE_DANCE_FLOOR],
--[if date | grep '^Sat.*pm' >/dev/null 2>&1; then
-+[if test "x`date +%A`" = xSaturday; then
-   AC_REQUIRE([TRAVOLTA])
-   AC_REQUIRE([NEWTON_JOHN])
- fi])
-@@ -14663,17 +14689,18 @@ fi
- @end example
- 
- @noindent
--does not leave you with a better chance to meet a kindred soul at
--other times than Saturday night since it expands into:
-+does not leave you with a better chance to meet a kindred soul on
-+days other than Saturday, since the call to @code{RESERVE_DANCE_FLOOR}
-+expands to:
- 
- @example
- @group
--test "$body_temperature_in_Celsius" -gt "38" &&
-+test "$body_temperature_in_Celsius" -gt 38 &&
-   dance_floor=occupied
- test "x$hair_style" = xcurly &&
-   dance_floor=occupied
- fi
--if date | grep '^Sat.*pm' >/dev/null 2>&1; then
-+if test "x`date +%A`" = xSaturday; then
- 
- 
- fi
-@@ -14787,9 +14814,11 @@ in A
- in C
- @end example
- 
--The helper macros @code{AS_IF} and @code{AS_CASE} may be used to
--enforce expansion of required macros outside of shell conditional
--constructs.  You are furthermore encouraged, although not required, to
-+You can use the helper macros @code{AS_IF} and @code{AS_CASE} in
-+top-level code to enforce expansion of required macros outside of shell
-+conditional constructs; these helpers are not needed in the bodies of
-+macros defined by @code{AC_DEFUN}.
-+You are furthermore encouraged, although not required, to
- put all @code{AC_REQUIRE} calls
- at the beginning of a macro.  You can use @code{dnl} to avoid the empty
- lines they leave.
-@@ -15337,15 +15366,16 @@ called @samp{ksh88} and @samp{ksh93}, named after the years of initial
- release.  It is usually called @command{ksh}, but is called @command{sh}
- on some hosts if you set your path appropriately.
- 
--Solaris systems have three variants:
-+On Solaris 11, @command{/bin/sh} and @command{/usr/bin/ksh} are both
-+@samp{ksh93}.  On Solaris 10 and earlier, @command{/bin/sh} is a
-+pre-Posix Bourne shell and the Korn shell is found elsewhere:
- @prindex @command{/usr/bin/ksh} on Solaris
--@command{/usr/bin/ksh} is @samp{ksh88}; it is
--standard on Solaris 2.0 and later.
-+@command{/usr/bin/ksh} is @samp{ksh88} on Solaris 2.0 through 10,
- @prindex @command{/usr/xpg4/bin/sh} on Solaris
- @command{/usr/xpg4/bin/sh} is a Posix-compliant variant of
--@samp{ksh88}; it is standard on Solaris 9 and later.
-+@samp{ksh88} on Solaris 9 and later,
- @prindex @command{/usr/dt/bin/dtksh} on Solaris
--@command{/usr/dt/bin/dtksh} is @samp{ksh93}.
-+and @command{/usr/dt/bin/dtksh} is @samp{ksh93}.
- Variants that are not standard may be parts of optional
- packages.  There is no extra charge for these packages, but they are
- not part of a minimal OS install and therefore some installations may
-@@ -15714,7 +15744,7 @@ hello
- @end example
- 
- Don't rely on duplicating a closed file descriptor to cause an
--error.  With Solaris @command{/bin/sh}, failed duplication is silently
-+error.  With Solaris 10 @command{/bin/sh}, failed duplication is silently
- ignored, which can cause unintended leaks to the original file
- descriptor.  In this example, observe the leak to standard output:
- 
-@@ -15987,7 +16017,7 @@ esac
- 
- @noindent
- Make sure you quote the brackets if appropriate and keep the backslash as
--first character (@pxref{case, , Limitations of Shell Builtins}).
-+first character.  @xref{case, , Limitations of Shell Builtins}.
- 
- Also, because the colon is used as part of a drivespec, these systems don't
- use it as path separator.  When creating or accessing paths, you can use the
-@@ -16120,7 +16150,7 @@ esac
- and in fact it is even @emph{more} portable: in the first case of the
- first attempt, the computation of @code{top_srcdir} is not portable,
- since not all shells properly understand @code{"`@dots{}"@dots{}"@dots{}`"},
--for example Solaris 10 ksh:
-+for example Solaris 10 @command{ksh}:
- 
- @example
- $ @kbd{foo="`echo " bar" | sed 's, ,,'`"}
-@@ -16427,7 +16457,7 @@ sys	0m0.003s
- @end example
- 
- As with @samp{+} and @samp{-}, @var{value} must be a single shell word,
--otherwise some shells, such as Solaris @command{/bin/sh} or on Digital
-+otherwise some shells, such as Solaris 10 @command{/bin/sh} or on Digital
- Unix V 5.0, die because of a ``bad substitution''.  Meanwhile, Posix
- requires that with @samp{=}, quote removal happens prior to the
- assignment, and the expansion be the final contents of @var{var} without
-@@ -16463,9 +16493,9 @@ $ @kbd{ksh -c 'x= y=$@{x:=b@} sh -c "echo +\$x+\$y+";echo -$x-'}
- 
- @item $@{@var{var}=@var{value}@}
- @cindex @code{$@{@var{var}=@var{literal}@}}
--Solaris @command{/bin/sh} has a frightening bug in its handling of
-+Solaris 10 @command{/bin/sh} has a frightening bug in its handling of
- literal assignments.  Imagine you need set a variable to a string containing
--@samp{@}}.  This @samp{@}} character confuses Solaris @command{/bin/sh}
-+@samp{@}}.  This @samp{@}} character confuses Solaris 10 @command{/bin/sh}
- when the affected variable was already set.  This bug can be exercised
- by running:
- 
-@@ -16545,8 +16575,8 @@ list=$@{list="$default"@}
- @end example
- 
- @noindent
--@dots{}but beware of the @samp{@}} bug from Solaris (see above).  For safety,
--use:
-+@dots{}but beware of the @samp{@}} bug from Solaris 10 (see above).
-+For safety, use:
- 
- @example
- test $@{var+y@} || var=@var{@{value@}}
-@@ -16729,7 +16759,7 @@ Always quote @samp{^}, otherwise traditional shells such as
- 
- When setting several variables in a row, be aware that the order of the
- evaluation is undefined.  For instance @samp{foo=1 foo=2; echo $foo}
--gives @samp{1} with Solaris @command{/bin/sh}, but @samp{2} with Bash.
-+gives @samp{1} with Solaris 10 @command{/bin/sh}, but @samp{2} with Bash.
- You must use
- @samp{;} to enforce the order: @samp{foo=1; foo=2; echo $foo}.
- 
-@@ -17376,7 +17406,7 @@ and other options upon function entry and exit.  Inside a function,
- IRIX sh sets @samp{$0} to the function name.
- 
- It is not portable to pass temporary environment variables to shell
--functions.  Solaris @command{/bin/sh} does not see the variable.
-+functions.  Solaris 10 @command{/bin/sh} does not see the variable.
- Meanwhile, not all shells follow the Posix rule that the assignment must
- affect the current environment in the same manner as special built-ins.
- 
-@@ -17453,7 +17483,7 @@ $ @kbd{zsh -c '. ./syntax; echo $?'}
- @prindex @command{!}
- The Unix version 7 shell did not support
- negating the exit status of commands with @command{!}, and this feature
--is still absent from some shells (e.g., Solaris @command{/bin/sh}).
-+is still absent from some shells (e.g., Solaris 10 @command{/bin/sh}).
- Other shells, such as FreeBSD @command{/bin/sh} or @command{ash}, have
- bugs when using @command{!}:
- 
-@@ -17559,9 +17589,9 @@ esac
- @end example
- 
- @noindent
--but the @code{(} in this example is not portable to many Bourne
-+but the @code{(} in this example is not portable to a few obsolescent Bourne
- shell implementations, which is a pity for those of us using tools that
--rely on balanced parentheses.  For instance, with Solaris
-+rely on balanced parentheses.  For instance, with Solaris 10
- @command{/bin/sh}:
- 
- @example
-@@ -17705,7 +17735,8 @@ option.
- 
- Do not use backslashes in the arguments, as there is no consensus on
- their handling.  For @samp{echo '\n' | wc -l}, the @command{sh} of
--Solaris outputs 2, but Bash and Zsh (in @command{sh} emulation mode) output 1.
-+Solaris 10 outputs 2,
-+but Bash and Zsh (in @command{sh} emulation mode) output 1.
- The problem is truly @command{echo}: all the shells
- understand @samp{'\n'} as the string composed of a backslash and an
- @samp{n}.  Within a command substitution, @samp{echo 'string\c'} will
-@@ -17855,7 +17886,7 @@ trap to clean up before exiting.  If the last shell command exited with
- nonzero status, the trap also exits with nonzero status so that the
- invoker can tell that an error occurred.
- 
--Unfortunately, in some shells, such as Solaris @command{/bin/sh}, an exit
-+Unfortunately, in some shells, such as Solaris 10 @command{/bin/sh}, an exit
- trap ignores the @code{exit} command's argument.  In these shells, a trap
- cannot determine whether it was invoked by plain @code{exit} or by
- @code{exit 1}.  Instead of calling @code{exit} directly, use the
-@@ -17872,7 +17903,7 @@ of the environment variables.  Conversely, each environment variable
- received by the shell when it is launched should be imported as a shell
- variable marked as exported.
- 
--Alas, many shells, such as Solaris @command{/bin/sh},
-+Alas, many shells, such as Solaris 10 @command{/bin/sh},
- IRIX 6.3, IRIX 5.2,
- AIX 4.1.5, and Digital Unix 4.0, forget to
- @command{export} the environment variables they receive.  As a result,
-@@ -17987,7 +18018,7 @@ word splitting on @samp{$@{1+"$@@"@}}; see @ref{Shell Substitutions},
- item @samp{$@@}, for more.
- 
- Posix requires support for a @command{for} loop with no list after
--@code{in}.  However, Solaris @command{/bin/sh} treats that as a syntax
-+@code{in}.  However, Solaris 10 @command{/bin/sh} treats that as a syntax
- error.  It is possible to work around this by providing any shell word
- that expands to nothing, or by ignoring an obvious sentinel.
- 
-@@ -18022,7 +18053,7 @@ a
- b
- @end example
- 
--In Solaris @command{/bin/sh}, when the list of arguments of a
-+In Solaris 10 @command{/bin/sh}, when the list of arguments of a
- @command{for} loop starts with @emph{unquoted} tokens looking like
- variable assignments, the loop is not executed on those tokens:
- 
-@@ -18185,7 +18216,7 @@ Also please see the discussion of the @command{cd} command.
- @item @command{read}
- @c -----------------
- @prindex @command{read}
--No options are portable, not even support @option{-r} (Solaris
-+No options are portable, not even support @option{-r} (Solaris 10
- @command{/bin/sh} for example).  Tru64/OSF 5.1 @command{sh} treats
- @command{read} as a special built-in, so it may exit if input is
- redirected from a non-existent or unreadable file.
-@@ -18287,7 +18318,7 @@ instance of @samp{test -n "$foo" && exit 1} to be @samp{if test -n
- users not to use @samp{sh -e}.
- 
- When @samp{set -e} is in effect, a failed command substitution in
--Solaris @command{/bin/sh} cannot be ignored, even with @samp{||}.
-+Solaris 10 @command{/bin/sh} cannot be ignored, even with @samp{||}.
- 
- @example
- $ @kbd{/bin/sh -c 'set -e; foo=`false` || echo foo; echo bar'}
-@@ -18474,7 +18505,7 @@ known-safe string of @samp{y}.
- Posix also says that @samp{test ! "@var{string}"},
- @samp{test -n "@var{string}"} and
- @samp{test -z "@var{string}"} work with any string, but many
--shells (such as Solaris, AIX 3.2, UNICOS 10.0.0.6,
-+shells (such as Solaris 10, AIX 3.2, UNICOS 10.0.0.6,
- Digital Unix 4, etc.)@: get confused if
- @var{string} looks like an operator:
- 
-@@ -18538,7 +18569,7 @@ will invoke the trap at the end of this function.
- 
- Posix says that @samp{trap - 1 2 13 15} resets the traps for the
- specified signals to their default values, but many common shells (e.g.,
--Solaris @command{/bin/sh}) misinterpret this and attempt to execute a
-+Solaris 10 @command{/bin/sh}) misinterpret this and attempt to execute a
- ``command'' named @command{-} when the specified conditions arise.
- Posix 2008 also added a requirement to support @samp{trap 1 2 13 15} to
- reset traps, as this is supported by a larger set of shells, but there
-@@ -18555,7 +18586,7 @@ the @emph{last} command run: that before @command{exit}, or
- @command{exit} itself?''
- 
- Bash considers @command{exit} to be the last command, while Zsh and
--Solaris @command{/bin/sh} consider that when the trap is run it is
-+Solaris 10 @command{/bin/sh} consider that when the trap is run it is
- @emph{still} in the @command{exit}, hence it is the previous exit status
- that the trap receives:
- 
--- 
-2.25.1
-
-
-From b0d20c049bda80a9d323326ae5ea3fd5e4857712 Mon Sep 17 00:00:00 2001
-From: Zack Weinberg <zackw@panix.com>
-Date: Wed, 14 Oct 2020 20:22:41 -0400
-Subject: [PATCH 8/9] autoreconf: cope with empty AC_CONFIG_SUBDIRS (bug
- 110331)
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-Commit 41edf99f9515f3f83398428c39d79e11266a5a0d made all Perl warnings
-fatal.  This caused autoreconf to crash on packages that call
-AC_CONFIG_SUBDIRS with no arguments. They probably shouldn’t do that,
-but we shouldn’t crash if they do.
-
-Problem reported by Ross Burton.
-
-* bin/autoreconf.in (autoreconf_current_directory):
-  Convert undef to '' before attempting to split it.
-* tests/torture.at (Empty AC_CONFIG_SUBDIRS): New test.
----
- bin/autoreconf.in |  5 +++--
- tests/torture.at  | 22 ++++++++++++++++++++++
- 2 files changed, 25 insertions(+), 2 deletions(-)
-
-diff --git a/bin/autoreconf.in b/bin/autoreconf.in
-index 2ea917b5..54b9b675 100644
---- a/bin/autoreconf.in
-+++ b/bin/autoreconf.in
-@@ -438,8 +438,9 @@ sub autoreconf_current_directory ($)
-       $uses_automake = 1            if $macro eq "AM_INIT_AUTOMAKE";
-       $uses_intltool = 1            if $macro eq "IT_PROG_INTLTOOL";
-       $uses_gtkdoc = 1              if $macro eq "GTK_DOC_CHECK";
--      push @subdir, split (' ', $args[0])
--                                    if $macro eq "AC_CONFIG_SUBDIRS" && $recursive;
-+      push @subdir, split (' ', $args[0] || '')
-+                                    if $macro eq "AC_CONFIG_SUBDIRS"
-+                                       && $recursive;
-     }
-   $traces->close;
- 
++# Delay to make sure the cache files generated by the previous command
++# are considered to have been created in the past.
++sleep 2
++
+ # A second run (without --force) should succeed and yield only the
+ # warnings about AC_INIT and AC_OUTPUT.
+ AT_CHECK_M4([autoconf], 0, [],
 diff --git a/tests/torture.at b/tests/torture.at
-index ff0f53f3..631f34f4 100644
+index a96af651..46466f34 100644
 --- a/tests/torture.at
 +++ b/tests/torture.at
-@@ -1807,6 +1807,28 @@ AT_CHECK([test -f foo/innerfile])
+@@ -1964,7 +1964,7 @@ AT_CLEANUP
+ ## Missing auxiliary files.  ##
+ ## ------------------------- ##
+ 
+-AT_SETUP([Missing auxiliary files])
++AT_SETUP([Missing auxiliary files (config.*)])
+ AT_KEYWORDS([autoreconf])
+ 
+ # Prevent autoreconf from running aclocal, which might not exist,
+@@ -2023,6 +2023,12 @@ AT_CHECK([test ! -e build-aux/install-sh])
+ 
+ AT_CHECK_CONFIGURE
+ 
++AT_CLEANUP
++
++
++AT_SETUP([Missing auxiliary files (install-sh)])
++AT_KEYWORDS([autoreconf])
++
+ # Repeat all the above tests with a configure script that _doesn't_
+ # need config.{sub,guess} but does need install-sh.
+ 
+@@ -2062,6 +2068,47 @@ AT_CHECK_CONFIGURE
  
  AT_CLEANUP
  
-+## ------------------------- ##
-+## Empty AC_CONFIG_SUBDIRS.  ##
-+## ------------------------- ##
 +
-+AT_SETUP([Empty AC_CONFIG_SUBDIRS])
++AT_SETUP([Missing auxiliary files (foreign)])
 +AT_KEYWORDS([autoreconf])
 +
-+AT_DATA([install-sh], [])
-+AT_DATA([configure.ac],
-+[[AC_INIT(GNU Outer, 1.0)
++# If an aux file is required that autoreconf doesn't know how to install,
++# it shouldn't suggest autoreconf --install.
++# This also verifies that AC_REQUIRE_AUX_FILE can be used outside of a
++# macro definition, which was always the intent, and was recommended
++# usage in some automake recipes, but which was broken in autoconf
++# beta 2.69d (see https://savannah.gnu.org/support/?110363).
 +
-+AC_CONFIG_SUBDIRS()
++AT_DATA([configure.ac],
++[[AC_INIT([GNU foo], [1.0])
++AC_CONFIG_AUX_DIR([build-aux])
++AC_REQUIRE_AUX_FILE([tap-driver.sh])
 +AC_OUTPUT
 +]])
 +
-+# autoreconf should have no complaints, and the generated configure
-+# script should run fine with or without --no-recursion.
-+AT_CHECK([autoreconf -Werror], [0], [ignore])
-+AT_CHECK_CONFIGURE()
-+AT_CHECK_CONFIGURE([--no-recursion])
++AT_CHECK_AUTOCONF
++AT_CHECK_CONFIGURE([], [1], [ignore],
++[configure: error: cannot find required auxiliary files: tap-driver.sh
++])
++
++AT_CHECK([autoreconf], 1, [],
++[configure.ac: error: required file 'tap-driver.sh' not found
++])
++AT_CHECK([test ! -e build-aux])
++
++AT_CHECK([autoreconf --install], 1, [],
++[configure.ac: error: required file 'tap-driver.sh' not found
++])
++# autoreconf --install always creates the aux directory.
++AT_CHECK([test -e build-aux])
++
++touch build-aux/tap-driver.sh
++
++AT_CHECK([autoreconf])
++AT_CHECK_CONFIGURE
 +
 +AT_CLEANUP
- 
- ## ----------------- ##
- ## Empty directory.  ##
--- 
-2.25.1
-
-
-From 2a94d5b1541ea7e988893c7ca6e7fa20e2ea97b6 Mon Sep 17 00:00:00 2001
-From: Ross Burton <ross.burton@arm.com>
-Date: Wed, 14 Oct 2020 20:33:19 -0400
-Subject: [PATCH 9/9] autoreconf: remove redundant xsystem calls
-
-xsystem_hint() executes the command, so there's no need to call xsystem()
-afterwards.
-
-* bin/autoreconf.in: No need to call xsystem($cmd) immediately after
-  calling xsystem_hint("message", $cmd).
----
- bin/autoreconf.in | 8 ++++----
- 1 file changed, 4 insertions(+), 4 deletions(-)
-
-diff --git a/bin/autoreconf.in b/bin/autoreconf.in
-index 54b9b675..ba08c6ac 100644
---- a/bin/autoreconf.in
-+++ b/bin/autoreconf.in
-@@ -311,7 +311,8 @@ sub autoreconf_current_directory ($)
-     }
-   else
-     {
--      xsystem_hint ("autopoint is needed because this package uses Gettext", "$autopoint");
-+      xsystem_hint ("autopoint is needed because this package uses Gettext",
-+                    $autopoint);
-     }
- 
- 
-@@ -517,8 +518,8 @@ sub autoreconf_current_directory ($)
-     }
-   elsif ($install)
-     {
--      xsystem_hint ("intltoolize is needed because this package uses Intltool", $intltoolize);
--      xsystem ($intltoolize)
-+      xsystem_hint ("intltoolize is needed because this package uses Intltool",
-+                    $intltoolize);
-     }
-   else
-     {
-@@ -538,7 +539,6 @@ sub autoreconf_current_directory ($)
-     {
-       xsystem_hint ("gtkdocize is needed because this package uses Gtkdoc",
- 		    $gtkdocize);
--      xsystem ($gtkdocize)
-     }
-   else
-     {
--- 
-2.25.1
-
++
+ ## ------------------------------ ##
+ ## Files clobbered by AC_OPENMP.  ##
+ ## ------------------------------ ##

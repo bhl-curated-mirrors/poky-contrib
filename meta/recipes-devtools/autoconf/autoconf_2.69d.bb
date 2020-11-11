@@ -6,7 +6,6 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=cc3f3a7596cb558bbd9eb7fbaa3ef16c \
 
 SRC_URI = "https://alpha.gnu.org/gnu/${BPN}/${BP}.tar.gz \
            file://from-master.patch \
-           file://ac-init.patch \
            file://program_prefix.patch \
            file://autoreconf-exclude.patch \
            file://autoreconf-gnuconfigize.patch \
@@ -16,9 +15,9 @@ SRC_URI = "https://alpha.gnu.org/gnu/${BPN}/${BP}.tar.gz \
            file://autotest-automake-result-format.patch \
            "
 
-SRC_URI[sha256sum] = "6d778f6228e536ac962c597f2b1fb9ddf6669b7cbd1cb80b7c9c6db2dd6f4916"
+SRC_URI[sha256sum] = "64e031c45a89658d0551bd5ae6222bd36481d635772ffe7dae1dca28bdb70357"
 
-SRC_URI_append_class-native = " file://fix_path_xtra.patch file://no-man.patch"
+SRC_URI_append_class-native = " file://no-man.patch"
 
 EXTRA_OECONF += "ac_cv_path_M4=m4 ac_cv_prog_TEST_EMACS=no"
 

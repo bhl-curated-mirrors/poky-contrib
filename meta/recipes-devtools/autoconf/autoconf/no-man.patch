@@ -8,10 +8,7 @@ diff --git a/Makefile.in b/Makefile.in
 index 146e8e3..a1827c1 100644
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -753,14 +753,6 @@ dist_autotestlib_DATA = \
-   lib/autotest/specific.m4
-
- nodist_autotestlib_DATA = lib/autotest/autotest.m4f
+@@ -763,10 +762,0 @@ dist_buildaux_SCRIPTS = \
 -dist_man_MANS = \
 -  man/autoconf.1 \
 -  man/autoheader.1 \
@@ -20,6 +17,5 @@ index 146e8e3..a1827c1 100644
 -  man/autoscan.1 \
 -  man/autoupdate.1 \
 -  man/ifnames.1
-
-
- # Each manpage depends on:
+-
+-
