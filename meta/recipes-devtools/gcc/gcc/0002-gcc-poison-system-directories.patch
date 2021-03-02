@@ -159,6 +159,15 @@ index 9f790db0daf..b2200c5185a 100644
      %{static|no-pie|static-pie:} %@{L*} %(mfwrap) %(link_libgcc) " \
      VTABLE_VERIFICATION_SPEC " " SANITIZER_EARLY_SPEC " %o "" \
      %{fopenacc|fopenmp|%:gt(%{ftree-parallelize-loops=*:%*} 1):\
+@@ -1137,7 +1137,7 @@ static const char *cpp_options =
+ "%(cpp_unique_options) %1 %{m*} %{std*&ansi&trigraphs} %{W*&pedantic*} %{w}\
+  %{f*} %{g*:%{%:debug-level-gt(0):%{g*}\
+  %{!fno-working-directory:-fworking-directory}}} %{O*}\
+- %{undef} %{save-temps*:-fpch-preprocess}";
++ %{undef} %{save-temps*:-fpch-preprocess} -Werror=poison-system-directories";
+
+ /* This contains cpp options which are not passed when the preprocessor
+    output will be used by another program.  */
 diff --git a/gcc/incpath.c b/gcc/incpath.c
 index 8a2bda00f80..9098ab044ab 100644
 --- a/gcc/incpath.c
