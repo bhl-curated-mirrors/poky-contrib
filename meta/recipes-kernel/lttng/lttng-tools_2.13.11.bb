@@ -194,3 +194,8 @@ INHIBIT_PACKAGE_STRIP_FILES = "\
     ${PKGD}${PTEST_PATH}/tests/utils/testapp/gen-syscall-events-callstack/gen-syscall-events-callstack \
     ${PKGD}${PTEST_PATH}/tests/utils/testapp/gen-syscall-events-callstack/.libs/gen-syscall-events-callstack \
     "
+
+# make[4]: Entering directory '/yocto/ross/build/tmp/work/cortexa57-poky-linux/lttng-tools/2.13.9-r0/build/tests/regression/ust/baddr-statedump'
+# aarch64-poky-linux-objcopy --only-keep-debug prog prog.debug
+# aarch64-poky-linux-objcopy: prog: file format not recognized
+LIBTOOL = "libtool"
