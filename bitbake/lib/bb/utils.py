@@ -1576,6 +1576,16 @@ def get_file_layer(filename, d, collection_res={}):
 
     return result
 
+def layer_path(layername, d):
+    """
+    Return the path to the specified layer, or None if the layer isn't present.
+    """
+    bbpath = d.getVar("BBPATH").split(":")
+    pattern = d.getVar('BBFILE_PATTERN_' + layername)
+    for path in reversed(sorted(bbpath)):
+        if re.match(pattern, path + "/"):
+            return path
+    return None
 
 # Constant taken from http://linux.die.net/include/linux/prctl.h
 PR_SET_PDEATHSIG = 1
