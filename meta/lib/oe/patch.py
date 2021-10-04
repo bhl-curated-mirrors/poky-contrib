@@ -592,7 +592,7 @@ class QuiltTree(PatchSet):
 
             # determine which patches are applied -> self._current
             try:
-                output = runcmd(["quilt", "applied"], self.dir)
+                output = self._runcmd(["applied"], self.dir)
             except CmdError:
                 import sys
                 if sys.exc_value.output.strip() == "No patches applied":
