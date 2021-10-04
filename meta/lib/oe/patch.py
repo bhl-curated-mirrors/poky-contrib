@@ -23,22 +23,15 @@ class CmdError(bb.BBHandledException):
                 (self.command, self.status, self.output)
 
 
-def runcmd(args, dir = None):
+def runcmd(args, dir=None):
     import pipes
     import subprocess
-
-    if dir:
-        olddir = os.path.abspath(os.curdir)
-        if not os.path.exists(dir):
-            raise NotFoundError(dir)
-        os.chdir(dir)
-        # print("cwd: %s -> %s" % (olddir, dir))
 
     try:
         args = [ pipes.quote(str(arg)) for arg in args ]
         cmd = " ".join(args)
         # print("cmd: %s" % cmd)
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=dir)
         stdout, stderr = proc.communicate()
         stdout = stdout.decode('utf-8')
         stderr = stderr.decode('utf-8')
@@ -51,10 +44,6 @@ def runcmd(args, dir = None):
             bb.note("--- Patch fuzz start ---\n%s\n--- Patch fuzz end ---" % format(stdout))
 
         return stdout
-
-    finally:
-        if dir:
-            os.chdir(olddir)
 
 class PatchError(Exception):
     def __init__(self, msg):
