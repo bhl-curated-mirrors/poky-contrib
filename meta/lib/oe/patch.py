@@ -27,23 +27,18 @@ def runcmd(args, dir=None):
     import pipes
     import subprocess
 
-    try:
-        args = [ pipes.quote(str(arg)) for arg in args ]
-        cmd = " ".join(args)
-        # print("cmd: %s" % cmd)
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=dir)
-        stdout, stderr = proc.communicate()
-        stdout = stdout.decode('utf-8')
-        stderr = stderr.decode('utf-8')
-        exitstatus = proc.returncode
-        if exitstatus != 0:
-            raise CmdError(cmd, exitstatus >> 8, "stdout: %s\nstderr: %s" % (stdout, stderr))
-        if " fuzz " in stdout and "Hunk " in stdout:
-            # Drop patch fuzz info with header and footer to log file so
-            # insane.bbclass can handle to throw error/warning
-            bb.note("--- Patch fuzz start ---\n%s\n--- Patch fuzz end ---" % format(stdout))
+    args = [ pipes.quote(str(arg)) for arg in args ]
+    cmd = " ".join(args)
 
-        return stdout
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=dir, universal_newlines=True)
+    if proc.returncode != 0:
+        raise CmdError(cmd, proc.returncode, "stdout: %s\nstderr: %s" % (proc.stdout, proc.stderr))
+    if " fuzz " in proc.stdout and "Hunk " in proc.stdout:
+        # Drop patch fuzz info with header and footer to log file so
+        # insane.bbclass can handle to throw error/warning
+        bb.note("--- Patch fuzz start ---\n%s\n--- Patch fuzz end ---" % format(proc.stdout))
+
+    return proc.stdout
 
 class PatchError(Exception):
     def __init__(self, msg):
