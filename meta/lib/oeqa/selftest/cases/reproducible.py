@@ -338,3 +338,50 @@ class ReproducibleTests(OESelftestTestCase):
         if fails:
             self.fail('\n'.join(fails))
 
+class ReproducibleSysrootTests(OESelftestTestCase):
+    save_results = False
+    if 'OEQA_DEBUGGING_SAVED_OUTPUT' in os.environ:
+        save_results = os.environ['OEQA_DEBUGGING_SAVED_OUTPUT']
+
+    def do_test_build(self, name):
+        tmpdir = os.path.join(get_bb_var('TOPDIR'), name, 'tmp')
+        if os.path.exists(tmpdir):
+            bb.utils.remove(tmpdir, recurse=True)
+
+        config = textwrap.dedent('''\
+            TMPDIR = "{tmpdir}"
+            LICENSE_FLAGS_WHITELIST = "commercial"
+            DISTRO_FEATURES:append = ' systemd pam'
+            ''').format(tmpdir=tmpdir)
+
+        # This config fragment will disable using shared and the sstate
+        # mirror, forcing a complete build from scratch
+        config += textwrap.dedent('''\
+            SSTATE_DIR = "${TMPDIR}/sstate"
+            SSTATE_MIRRORS = ""
+            ''')
+
+        self.logger.info("Building %s..." % (name))
+        self.write_config(config)
+        d = get_bb_var('COMPONENTS_DIR')
+        bitbake('--runall=populate_sysroot world')
+        return d
+
+
+    def test_reproducible_sysroots(self):
+        if self.save_results:
+            os.makedirs(self.save_results, exist_ok=True)
+            datestr = datetime.datetime.now().strftime('%Y%m%d')
+            save_dir = tempfile.mkdtemp(prefix='oe-reproducible-sysroots-%s-' % datestr, dir=self.save_results)
+            os.chmod(save_dir, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+            self.logger.info('Non-reproducible sysroots will be copied to %s', save_dir)
+
+        sysroots_a = self.do_test_build('reproducibleSysrootA')
+
+        sysroots_b = self.do_test_build('reproducibleSysrootB')
+
+        self.logger.info('Checking sysroots for differences...')
+        #result = self.compare_sysroots(sysroots_a, sysroots_b, diffutils_sysroot)
+
+        #self.logger.info('Reproducibility summary: %s' % (result))
+
