@@ -364,7 +364,7 @@ class ReproducibleSysrootTests(OESelftestTestCase):
         self.logger.info("Building %s..." % (name))
         self.write_config(config)
         d = get_bb_var('COMPONENTS_DIR')
-        bitbake('--runall=populate_sysroot world')
+        bitbake('--runall=populate_sysroot zstd-native')
         return d
 
 
