@@ -13,19 +13,19 @@ SRC_URI = "git://github.com/anholt/libepoxy;branch=master;protocol=https"
 SRCREV = "c84bc9459357a40e46e2fec0408d04fbdde2c973"
 S = "${WORKDIR}/git"
 
-inherit meson pkgconfig features_check github-releases
+inherit meson pkgconfig github-releases
 
-REQUIRED_DISTRO_FEATURES = "opengl"
-
-PACKAGECONFIG ??= "${@bb.utils.contains('DISTRO_FEATURES', 'api-documentation', 'docs', '', d)} \
-                   ${@bb.utils.filter('DISTRO_FEATURES', 'x11', d)} egl"
+PACKAGECONFIG ??= "${@bb.utils.contains('DISTRO_FEATURES', 'api-documentation', 'docs', '', d} \
+                   ${@bb.utils.contains('DISTRO_FEATURES', 'opengl', 'egl', '', d)} \
+                   ${@bb.utils.contains('DISTRO_FEATURES', 'opengl x11', 'glx x11' d)} egl"
 PACKAGECONFIG[egl] = "-Degl=yes, -Degl=no, virtual/egl"
-PACKAGECONFIG[x11] = "-Dglx=yes, -Dglx=no -Dx11=false, virtual/libx11 virtual/libgl"
+PACKAGECONFIG[glx] = "-Dglx=yes, -Dglx=no"
+PACKAGECONFIG[x11] = "-Dx11=true, -Dx11=false, virtual/libx11"
 PACKAGECONFIG[docs] = "-Ddocs=true, -Ddocs=false, doxygen-native"
 
 EXTRA_OEMESON += "-Dtests=false"
 
-PACKAGECONFIG:class-native = "egl x11"
-PACKAGECONFIG:class-nativesdk = "egl x11"
+PACKAGECONFIG:class-native = "egl glx x11"
+PACKAGECONFIG:class-nativesdk = "egl glx x11"
 
 BBCLASSEXTEND = "native nativesdk"
