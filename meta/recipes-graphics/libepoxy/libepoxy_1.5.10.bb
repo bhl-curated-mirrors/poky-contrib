@@ -17,9 +17,11 @@ inherit meson pkgconfig features_check github-releases
 
 REQUIRED_DISTRO_FEATURES = "opengl"
 
+PACKAGECONFIG ??= "${@bb.utils.contains('DISTRO_FEATURES', 'api-documentation', 'docs', '', d)} \
+                   ${@bb.utils.filter('DISTRO_FEATURES', 'x11', d)} egl"
 PACKAGECONFIG[egl] = "-Degl=yes, -Degl=no, virtual/egl"
 PACKAGECONFIG[x11] = "-Dglx=yes, -Dglx=no -Dx11=false, virtual/libx11 virtual/libgl"
-PACKAGECONFIG ??= "${@bb.utils.filter('DISTRO_FEATURES', 'x11', d)} egl"
+PACKAGECONFIG[docs] = "-Ddocs=true, -Ddocs=false, doxygen-native"
 
 EXTRA_OEMESON += "-Dtests=false"
 
@@ -27,4 +29,3 @@ PACKAGECONFIG:class-native = "egl x11"
 PACKAGECONFIG:class-nativesdk = "egl x11"
 
 BBCLASSEXTEND = "native nativesdk"
-
