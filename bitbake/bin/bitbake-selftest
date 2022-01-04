@@ -9,7 +9,9 @@ import os
 import sys, logging
 import warnings
 warnings.simplefilter("default")
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib'))
+
+bitbakelibdir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib')
+sys.path.insert(0, bitbakelibdir)
 
 import unittest
 try:
@@ -72,6 +74,10 @@ class main(unittest.main):
         super(main, self)._print_help(*args, **kwargs)
         print(ENV_HELP)
 
+class MyLoader(unittest.TestLoader):
+    def discover(self, start_dir, pattern, top_level_dir):
+        # runs ALL tests, we don't want to run the toaster ones
+        return super().discover(bitbakelibdir, top_level_dir=bitbakelibdir)
 
 if __name__ == '__main__':
-        main(defaultTest=tests, buffer=True)
+    main(module=None, buffer=True, testLoader=MyLoader())
