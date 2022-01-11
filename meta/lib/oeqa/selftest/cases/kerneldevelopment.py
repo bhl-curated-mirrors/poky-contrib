@@ -6,7 +6,7 @@
 
 import os
 from oeqa.selftest.case import OESelftestTestCase
-from oeqa.utils.commands import runCmd, get_bb_var
+from oeqa.utils.commands import bitbake, runCmd, get_bb_var
 from oeqa.utils.git import GitRepo
 
 class KernelDev(OESelftestTestCase):
@@ -72,3 +72,23 @@ class KernelDev(OESelftestTestCase):
         self.assertTrue(os.path.exists(readme))
         result = runCmd('tail -n 1 %s' % readme)
         self.assertEqual(result.output, patch_content)
+
+
+class KernelConfigs(OESelftestTestCase):
+    def test_defconfig(self):
+        """
+        Test that a kernel build with the default defconfig doesn't produce any
+        build warnings from the config checker.
+        """
+        self.write_config('''
+KCONF_AUDIT_LEVEL = "1"
+KMETA_AUDIT_WERROR = "1"
+KCONFIG_MODE = "--alldefconfig"
+KBUILD_DEFCONFIG = "unset"
+KBUILD_DEFCONFIG:aarch64 = "defconfig"
+KBUILD_DEFCONFIG:arm = "multi_v7_defconfig"
+KBUILD_DEFCONFIG:x86-64 = "x86_64_defconfig"
+# BSPs can append KERNEL_FEATURES, force it to be empty so we just use the defconfig
+KERNEL_FEATURES:forcevariable = ""
+''')
+        bitbake('virtual/kernel -c kernel_configcheck -f')
