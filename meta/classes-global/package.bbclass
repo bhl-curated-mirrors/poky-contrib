@@ -70,7 +70,7 @@ PACKAGE_WRITE_DEPS ??= ""
 def legitimize_package_name(s):
     return oe.package.legitimize_package_name(s)
 
-def do_split_packages(d, root, file_regex, output_pattern, description, postinst=None, recursive=False, hook=None, extra_depends=None, aux_files_pattern=None, postrm=None, allow_dirs=False, prepend=False, match_path=False, aux_files_pattern_verbatim=None, allow_links=False, summary=None):
+def do_split_packages(d, root, file_regex, output_pattern, description, postinst=None, recursive=False, hook=None, extra_depends=None, extra_recommends=None, aux_files_pattern=None, postrm=None, allow_dirs=False, prepend=False, match_path=False, aux_files_pattern_verbatim=None, allow_links=False, summary=None):
     """
     Used in .bb files to split up dynamically generated subpackages of a
     given package, usually plugins or modules.
@@ -99,6 +99,8 @@ def do_split_packages(d, root, file_regex, output_pattern, description, postinst
                       all packages. The default value of None causes a
                       dependency on the main package (${PN}) - if you do
                       not want this, pass '' for this parameter.
+    extra_recommends -- extra runtime recommends (RRECOMMENDS) to be set for
+                      all packages. By default no recommends are added.
     aux_files_pattern -- extra item(s) to be added to FILES for each
                       package. Can be a single string item or a list of
                       strings for multiple items.  Must include %s.
@@ -213,6 +215,8 @@ def do_split_packages(d, root, file_regex, output_pattern, description, postinst
             d.setVar('FILES:' + pkg, oldfiles + " " + newfile)
         if extra_depends != '':
             d.appendVar('RDEPENDS:' + pkg, ' ' + extra_depends)
+        if extra_recommends:
+            d.appendVar('RRECOMMENDS:' + pkg, ' ' + extra_recommends)
         if not d.getVar('DESCRIPTION:' + pkg):
             d.setVar('DESCRIPTION:' + pkg, description % on)
         if not d.getVar('SUMMARY:' + pkg):
