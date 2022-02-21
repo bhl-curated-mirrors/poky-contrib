@@ -281,6 +281,7 @@ def testimage_main(d):
                       'rootfs'      : rootfs,
                       'tmpdir'      : tmpdir,
                       'dir_image'   : dir_image,
+                      'image_name'  : image_name,
                       'display'     : display,
                       'kernel'      : kernel,
                       'boottime'    : boottime,
