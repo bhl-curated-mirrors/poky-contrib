@@ -12,6 +12,14 @@ SETUPTOOLS_BUILD_ARGS ?= ""
 
 SETUPTOOLS_SETUP_PATH ?= "${S}"
 
+do_check_backend() {
+        BACKEND=$(grep -s 'build-backend.*=' ${SETUPTOOLS_SETUP_PATH}/pyproject.toml) || true
+        if test -n "$BACKEND"; then
+                bbwarn inherits setuptools3 but has pyproject.toml with $BACKEND
+        fi
+}
+addtask check_backend after patch before configure
+
 setuptools3_do_configure() {
     :
 }
