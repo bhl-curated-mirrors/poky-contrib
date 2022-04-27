@@ -904,13 +904,17 @@ def patch_path(url, fetch, workdir, expand=True):
 
     return local
 
-def src_patches(d, expand=True):
+def src_patches(d, all=False, expand=True):
     workdir = d.getVar('WORKDIR')
     fetch = bb.fetch2.Fetch([], d)
     patches = []
+    sources = []
     for url in fetch.urls:
         local = patch_path(url, fetch, workdir, expand)
         if not local:
+            if all:
+                local = fetch.localpath(url)
+                sources.append(local)
             continue
 
         urldata = fetch.ud[url]
@@ -939,6 +943,9 @@ def src_patches(d, expand=True):
 
         localurl = bb.fetch.encodeurl(('file', '', local, '', '', patchparm))
         patches.append(localurl)
+
+    if all:
+        return sources
 
     return patches
 
