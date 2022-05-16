@@ -9,6 +9,8 @@ SRC_URI[sha256sum] = "6833ac65c6ed9711a4d5d2266f8024cfa07c533a0e55f4c12f6eff280a
 PYPI_PACKAGE = "setuptools_scm"
 inherit pypi python_setuptools_build_meta
 
+DEPENDS += "python3-tomli-native"
+
 UPSTREAM_CHECK_REGEX = "setuptools_scm-(?P<pver>.*)\.tar"
 
 RDEPENDS:${PN} = "\
