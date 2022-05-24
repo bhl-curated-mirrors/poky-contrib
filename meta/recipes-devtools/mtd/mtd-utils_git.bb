@@ -21,7 +21,7 @@ S = "${WORKDIR}/git"
 # xattr support creates an additional compile-time dependency on acl because
 # the sys/acl.h header is needed. libacl is not needed and thus enabling xattr
 # regardless whether acl is enabled or disabled in the distro should be okay.
-PACKAGECONFIG ??= "${@bb.utils.filter('DISTRO_FEATURES', 'xattr', d)} lzo jffs ubifs"
+PACKAGECONFIG ??= "${@bb.utils.filter('DISTRO_FEATURES', 'xattr', d)} jffs ubifs"
 PACKAGECONFIG[lzo] = "--with-lzo,--without-lzo,lzo"
 PACKAGECONFIG[xattr] = "--with-xattr,--without-xattr,acl"
 PACKAGECONFIG[crypto] = "--with-crypto,--without-crypto,openssl"
