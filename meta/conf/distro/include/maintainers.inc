@@ -483,7 +483,6 @@ RECIPE_MAINTAINER:pn-lttng-tools = "Richard Purdie <richard.purdie@linuxfoundati
 RECIPE_MAINTAINER:pn-lttng-ust = "Richard Purdie <richard.purdie@linuxfoundation.org>"
 RECIPE_MAINTAINER:pn-lua = "Alexander Kanavin <alex.kanavin@gmail.com>"
 RECIPE_MAINTAINER:pn-lz4 = "Denys Dmytriyenko <denis@denix.org>"
-RECIPE_MAINTAINER:pn-lzo = "Denys Dmytriyenko <denis@denix.org>"
 RECIPE_MAINTAINER:pn-lzip = "Denys Dmytriyenko <denis@denix.org>"
 RECIPE_MAINTAINER:pn-lzlib = "Denys Dmytriyenko <denis@denix.org>"
 RECIPE_MAINTAINER:pn-lzop = "Marek Vasut <marex@denx.de>"

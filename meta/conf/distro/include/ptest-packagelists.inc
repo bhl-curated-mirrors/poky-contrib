@@ -50,7 +50,6 @@ PTESTS_FAST = "\
     libxmlb \
     logrotate \
     lua \
-    lzo \
     m4 \
     nettle \
     opkg \
