@@ -414,9 +414,8 @@ RRECOMMENDS:${PN}-core:append:class-nativesdk = " nativesdk-python3-modules"
 RRECOMMENDS:${PN}-crypt:append:class-target = " ${MLPREFIX}openssl ${MLPREFIX}ca-certificates"
 RRECOMMENDS:${PN}-crypt:append:class-nativesdk = " ${MLPREFIX}openssl ${MLPREFIX}ca-certificates"
 
-# For historical reasons PN is empty and provided by python3-modules
 FILES:${PN} = ""
-RPROVIDES:${PN}-modules = "${PN}"
+RDEPENDS:${PN} = "${PN}-core ${PN}-modules"
 
 FILES:${PN}-pydoc += "${bindir}/pydoc${PYTHON_MAJMIN} ${bindir}/pydoc3"
 FILES:${PN}-idle += "${bindir}/idle3 ${bindir}/idle${PYTHON_MAJMIN}"
