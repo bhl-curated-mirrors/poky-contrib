@@ -10,11 +10,9 @@
 # You can use this from the command line by running scripts/buildhistory-diff
 #
 
-import sys
 import os.path
 import difflib
 import git
-import re
 import shlex
 import hashlib
 import collections
