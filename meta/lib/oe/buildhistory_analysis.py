@@ -11,6 +11,7 @@
 #
 
 import os.path
+import enum
 import difflib
 import git
 import shlex
@@ -205,13 +206,14 @@ class ChangeRecord:
         return '%s%s' % (prefix, out) if out else ''
 
 class FileChange:
-    changetype_add = 'A'
-    changetype_remove = 'R'
-    changetype_type = 'T'
-    changetype_perms = 'P'
-    changetype_ownergroup = 'O'
-    changetype_link = 'L'
-    changetype_move = 'M'
+    class ChangeType(enum.Enum):
+        ADD = 'A'
+        REMOVE = 'R'
+        TYPE = 'T'
+        PERMS = 'P'
+        OWNERGROUP = 'O'
+        LINK = 'L'
+        MOVE = 'M'
 
     def __init__(self, path, changetype, oldvalue = None, newvalue = None):
         self.path = path
@@ -238,19 +240,19 @@ class FileChange:
             return 'unknown (%s)' % ftype
 
     def __str__(self):
-        if self.changetype == self.changetype_add:
+        if self.changetype == FileChange.ChangeType.ADD:
             return '%s was added' % self.path
-        elif self.changetype == self.changetype_remove:
+        elif self.changetype == FileChange.ChangeType.REMOVE:
             return '%s was removed' % self.path
-        elif self.changetype == self.changetype_type:
+        elif self.changetype == FileChange.ChangeType.TYPE:
             return '%s changed type from %s to %s' % (self.path, self._ftype_str(self.oldvalue), self._ftype_str(self.newvalue))
-        elif self.changetype == self.changetype_perms:
+        elif self.changetype == FileChange.ChangeType.PERMS:
             return '%s changed permissions from %s to %s' % (self.path, self.oldvalue, self.newvalue)
-        elif self.changetype == self.changetype_ownergroup:
+        elif self.changetype == FileChange.ChangeType.OWNERGROUP:
             return '%s changed owner/group from %s to %s' % (self.path, self.oldvalue, self.newvalue)
-        elif self.changetype == self.changetype_link:
+        elif self.changetype == FileChange.ChangeType.LINK:
             return '%s changed symlink target from %s to %s' % (self.path, self.oldvalue, self.newvalue)
-        elif self.changetype == self.changetype_move:
+        elif self.changetype == FileChange.ChangeType.MOVE:
             return '%s moved to %s' % (self.path, self.oldvalue)
         else:
             return '%s changed (unknown)' % self.path
@@ -296,20 +298,20 @@ def compare_file_lists(alines, blines, compare_ownership=True):
             oldvalue = splitv[0][0]
             newvalue = newsplitv[0][0]
             if oldvalue != newvalue:
-                filechanges.append(FileChange(path, FileChange.changetype_type, oldvalue, newvalue))
+                filechanges.append(FileChange(path, FileChange.ChangeType.TYPE, oldvalue, newvalue))
 
             # Check permissions
             oldvalue = splitv[0][1:]
             newvalue = newsplitv[0][1:]
             if oldvalue != newvalue:
-                filechanges.append(FileChange(path, FileChange.changetype_perms, oldvalue, newvalue))
+                filechanges.append(FileChange(path, FileChange.ChangeType.PERMS, oldvalue, newvalue))
 
             if compare_ownership:
                 # Check owner/group
                 oldvalue = '%s/%s' % (splitv[1], splitv[2])
                 newvalue = '%s/%s' % (newsplitv[1], newsplitv[2])
                 if oldvalue != newvalue:
-                    filechanges.append(FileChange(path, FileChange.changetype_ownergroup, oldvalue, newvalue))
+                    filechanges.append(FileChange(path, FileChange.ChangeType.OWNERGROUP, oldvalue, newvalue))
 
             # Check symlink target
             if newsplitv[0][0] == 'l':
@@ -319,7 +321,7 @@ def compare_file_lists(alines, blines, compare_ownership=True):
                     oldvalue = None
                 newvalue = newsplitv[3]
                 if oldvalue != newvalue:
-                    filechanges.append(FileChange(path, FileChange.changetype_link, oldvalue, newvalue))
+                    filechanges.append(FileChange(path, FileChange.ChangeType.LINK, oldvalue, newvalue))
         else:
             removals.append(path)
 
@@ -370,18 +372,18 @@ def compare_file_lists(alines, blines, compare_ownership=True):
                                 additions.remove(addition2)
                                 removals.remove(removal2)
                     continue
-            filechanges.append(FileChange(removal, FileChange.changetype_move, addition))
+            filechanges.append(FileChange(removal, FileChange.ChangeType.MOVE, addition))
             if addition in additions:
                 additions.remove(addition)
             if removal in removals:
                 removals.remove(removal)
     for rename in renames:
-        filechanges.append(FileChange(renames[rename], FileChange.changetype_move, rename))
+        filechanges.append(FileChange(renames[rename], FileChange.ChangeType.MOVE, rename))
 
     for addition in additions:
-        filechanges.append(FileChange(addition, FileChange.changetype_add))
+        filechanges.append(FileChange(addition, FileChange.ChangeType.ADD))
     for removal in removals:
-        filechanges.append(FileChange(removal, FileChange.changetype_remove))
+        filechanges.append(FileChange(removal, FileChange.ChangeType.REMOVE))
 
     return filechanges
 
@@ -392,9 +394,9 @@ def compare_lists(alines, blines):
 
     filechanges = []
     for pkg in removed:
-        filechanges.append(FileChange(pkg, FileChange.changetype_remove))
+        filechanges.append(FileChange(pkg, FileChange.ChangeType.REMOVE))
     for pkg in added:
-        filechanges.append(FileChange(pkg, FileChange.changetype_add))
+        filechanges.append(FileChange(pkg, FileChange.ChangeType.ADD))
 
     return filechanges
 
