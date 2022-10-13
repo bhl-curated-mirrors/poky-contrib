@@ -106,7 +106,7 @@ class ChangeRecord:
             for dir1, dir2 in renamed_dirs:
                 aitems = [item for item in aitems if os.path.dirname(item) not in (dir1, dir2)]
                 bitems = [item for item in bitems if os.path.dirname(item) not in (dir1, dir2)]
-            return renamed_dirs, aitems, bitems
+            return sorted(renamed_dirs), sorted(aitems), sorted(bitems)
 
         if self.fieldname in list_fields or self.fieldname in list_order_fields:
             renamed_dirs = []
@@ -124,8 +124,8 @@ class ChangeRecord:
                     aitems = self.oldvalue.split()
                     bitems = self.newvalue.split()
 
-            removed = list(set(aitems) - set(bitems))
-            added = list(set(bitems) - set(aitems))
+            removed = list(sorted(set(aitems) - set(bitems)))
+            added = list(sorted(set(bitems) - set(aitems)))
 
             if not removed and not added and self.fieldname in ['RPROVIDES', 'RDEPENDS', 'RRECOMMENDS', 'RSUGGESTS', 'RREPLACES', 'RCONFLICTS']:
                 depvera = bb.utils.explode_dep_versions2(self.oldvalue, sort=False)
@@ -714,6 +714,9 @@ def process_changes(repopath, revision1, revision2='HEAD', report_all=False, rep
                     else:
                         fchgs.append(fchg)
                 chg.filechanges = fchgs
+
+    changes.sort(key=lambda c: c.fieldname)
+    changes.sort(key=lambda c: c.path)
 
     if report_all:
         return changes
