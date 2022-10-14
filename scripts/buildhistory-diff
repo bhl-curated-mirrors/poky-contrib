@@ -15,9 +15,18 @@ import argparse
 # Ensure PythonGit is installed (buildhistory_analysis needs it)
 try:
     import git
+    import gitdb
 except ImportError:
     print("Please install GitPython (python3-git) 0.3.4 or later in order to use this script")
     sys.exit(1)
+
+scripts_path = os.path.abspath(os.path.dirname(os.path.abspath(sys.argv[0])))
+lib_path = scripts_path + '/lib'
+sys.path = sys.path + [lib_path]
+import scriptpath
+scriptpath.add_oe_lib_path()
+
+import oe.buildhistory_analysis as ba
 
 def get_args_parser():
     description = "Reports significant differences in the buildhistory repository."
@@ -83,21 +92,6 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    scripts_path = os.path.abspath(os.path.dirname(os.path.abspath(sys.argv[0])))
-    lib_path = scripts_path + '/lib'
-    sys.path = sys.path + [lib_path]
-
-    import scriptpath
-
-    # Set path to OE lib dir so we can import the buildhistory_analysis module
-    scriptpath.add_oe_lib_path()
-    # Set path to bitbake lib dir so the buildhistory_analysis module can load bb.utils
-    bitbakepath = scriptpath.add_bitbake_lib_path()
-
-    if not bitbakepath:
-        sys.stderr.write("Unable to find bitbake by searching parent directory of this script or PATH\n")
-        sys.exit(1)
-
     if len(args.revisions) == 1:
         if '..'  in args.revisions[0]:
             fromrev, torev = args.revisions[0].split('..')
@@ -106,13 +100,10 @@ def main():
     elif len(args.revisions) == 2:
         fromrev, torev = args.revisions
 
-    from oe.buildhistory_analysis import init_colours, process_changes
-    import gitdb
-
     init_colours({"yes": True, "no": False, "auto": sys.stdout.isatty()}[args.colour])
 
     try:
-        changes = process_changes(args.buildhistory_dir, fromrev, torev,
+        changes = ba.process_changes(args.buildhistory_dir, fromrev, torev,
                                   args.report_all, args.report_ver, args.sigs,
                                   args.sigsdiff, args.exclude_path)
     except gitdb.exc.BadObject as e:
