@@ -65,16 +65,13 @@ class ChangeRecord:
         self.filechanges = None
 
     def __str__(self):
-        return self._str_internal(True)
+        return self._str_internal()
 
-    def _str_internal(self, outer):
-        if outer:
-            if '/image-files/' in self.path:
-                prefix = '%s: ' % self.path.split('/image-files/')[0]
-            else:
-                prefix = '%s: ' % self.path
+    def _str_internal(self):
+        if '/image-files/' in self.path:
+            prefix = '%s: ' % self.path.split('/image-files/')[0]
         else:
-            prefix = ''
+            prefix = '%s: ' % self.path
 
         def pkglist_combine(depver):
             pkglist = []
@@ -187,8 +184,7 @@ class ChangeRecord:
                     fieldname = os.path.join('/' + self.path.split('/image-files/')[1], self.fieldname)
                     out = 'Changes to %s:\n  ' % fieldname
                 else:
-                    if outer:
-                        prefix = 'Changes to %s ' % self.path
+                    prefix = 'Changes to %s ' % self.path
                     out = '(%s):\n  ' % self.fieldname
                 if self.filechanges:
                     out += '\n  '.join(['%s' % i for i in self.filechanges])
