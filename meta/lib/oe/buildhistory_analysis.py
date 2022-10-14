@@ -31,8 +31,6 @@ monitor_fields = ['RPROVIDES', 'RDEPENDS', 'RRECOMMENDS', 'RREPLACES', 'RCONFLIC
 ver_monitor_fields = ['PKGE', 'PKGV', 'PKGR']
 # Percentage change to alert for numeric fields
 monitor_numeric_threshold = 10
-# Image files to monitor (note that image-info.txt is handled separately)
-img_monitor_files = ['installed-package-names.txt', 'files-in-image.txt']
 
 colours = {
     'colour_default': '',
@@ -646,25 +644,21 @@ def process_changes(repopath, revision1, revision2='HEAD', report_all=False, rep
 
         elif path.startswith('images/'):
             filename = os.path.basename(d.a_blob.path)
-            if filename in img_monitor_files:
-                if filename == 'files-in-image.txt':
-                    alines = d.a_blob.data_stream.read().decode('utf-8').splitlines()
-                    blines = d.b_blob.data_stream.read().decode('utf-8').splitlines()
-                    filechanges = compare_file_lists(alines,blines)
-                    if filechanges:
-                        chg = ChangeRecord(path, filename, None, None, True)
-                        chg.filechanges = filechanges
-                        changes.append(chg)
-                elif filename == 'installed-package-names.txt':
-                    alines = d.a_blob.data_stream.read().decode('utf-8').splitlines()
-                    blines = d.b_blob.data_stream.read().decode('utf-8').splitlines()
-                    filechanges = compare_lists(alines,blines)
-                    if filechanges:
-                        chg = ChangeRecord(path, filename, None, None, True)
-                        chg.filechanges = filechanges
-                        changes.append(chg)
-                else:
-                    chg = ChangeRecord(path, filename, d.a_blob.data_stream.read().decode('utf-8'), d.b_blob.data_stream.read().decode('utf-8'), True)
+            if filename == 'files-in-image.txt':
+                alines = d.a_blob.data_stream.read().decode('utf-8').splitlines()
+                blines = d.b_blob.data_stream.read().decode('utf-8').splitlines()
+                filechanges = compare_file_lists(alines,blines)
+                if filechanges:
+                    chg = ChangeRecord(path, filename, None, None, True)
+                    chg.filechanges = filechanges
+                    changes.append(chg)
+            elif filename == 'installed-package-names.txt':
+                alines = d.a_blob.data_stream.read().decode('utf-8').splitlines()
+                blines = d.b_blob.data_stream.read().decode('utf-8').splitlines()
+                filechanges = compare_lists(alines,blines)
+                if filechanges:
+                    chg = ChangeRecord(path, filename, None, None, True)
+                    chg.filechanges = filechanges
                     changes.append(chg)
             elif filename == 'image-info.txt':
                 changes.extend(compare_dict_blobs(path, d.a_blob, d.b_blob, report_all, report_ver))
