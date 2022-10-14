@@ -124,7 +124,7 @@ def main():
         sys.exit(1)
 
     for chg in changes:
-        out = str(chg)
+        out = chg.str_pretty()
         if out:
             print(out)
 

@@ -65,9 +65,12 @@ class ChangeRecord:
         self.filechanges = None
 
     def __str__(self):
-        return self._str_internal()
+        if self.filechanges:
+            return ("%s: %s changed:\n" % (self.path, self.fieldname)) + "\n".join(["  " + str(c) for c in self.filechanges])
+        else:
+            return "%s: %s changed from '%s' to '%s'" % (self.path, self.fieldname, self.oldvalue, self.newvalue)
 
-    def _str_internal(self):
+    def str_pretty(self):
         if '/image-files/' in self.path:
             prefix = '%s: ' % self.path.split('/image-files/')[0]
         else:
