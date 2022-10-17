@@ -238,6 +238,14 @@ def str_pretty(chg):
 
     return '%s%s' % (prefix, out) if out else ''
 
+def html(changes):
+    import jinja2
+    loader = jinja2.FileSystemLoader("/home/ross/Yocto/poky/scripts")
+    env = jinja2.Environment(loader=loader, autoescape=jinja2.select_autoescape())
+    template = env.get_template("diff.html")
+
+    differ = difflib.Differ()
+    print(template.render(changes=changes, differ=differ))
 
 def main():
 
@@ -277,10 +285,13 @@ def main():
             sys.stderr.write('Specified git revision "%s" is not valid\n' % e.args[0])
         sys.exit(1)
 
-    for chg in changes:
-        out = str_pretty(chg)
-        if out:
-            print(out)
+    if True:
+        html(changes)
+    else:
+        for chg in changes:
+            out = str_pretty(chg)
+            if out:
+                print(out)
 
     sys.exit(0)
 

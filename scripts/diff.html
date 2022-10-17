@@ -1,0 +1,49 @@
+{% macro file_change(change) %}
+    {% if change.changetype == change.ChangeType.ADD %}
+    <tt>{{change.path}}</tt> was added</tt>
+    {% elif change.changetype == change.ChangeType.REMOVE %}
+    <tt>{{change.path}}</tt> was removed</tt>
+    {% elif change.changetype == change.ChangeType.LINK %}
+    <tt>{{change.path}}</tt> changed symlink target from <tt>{{change.oldvalue}}</tt> to <tt>{{change.newvalue}}</tt>
+    {% elif change.changetype == change.ChangeType.MOVE %}
+    <tt>{{change.path}}</tt> moved to <tt>{{change.oldvalue}}</tt>
+    {% else %}
+    Unhandled {{change.changetype}}
+    {% endif %}
+{% endmacro %}
+
+<!DOCTYPE html>
+<html>
+    <body>
+        <h2>Changes</h2>
+        <ul>
+        {% for path, changes in changes|groupby("path") %}
+        <li><a href="#path-{{path}}">{{path}}</a></li>
+        {% endfor %}
+        </ul>
+
+        <hr>
+
+        {% for path, changes in changes|groupby("path") %}
+        <h3 id="path-{{path}}">{{path}}</h3>
+        <ul>
+            {% for change in changes %}
+            <li>{{change.fieldname}}</li>
+
+            {% if change.oldvalue or change.newvalue %}
+            <pre>{{"\n".join(differ.compare(change.oldvalue.splitlines(), change.newvalue.splitlines()))}}</pre>
+            {% endif %}
+
+            {% if change.filechanges %}
+            <ul>
+                {% for c in change.filechanges %}
+                <li>{{file_change(c)}}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% endfor %}
+        </ul>
+        {% endfor %}
+        </ul>
+    </body>
+</html>
