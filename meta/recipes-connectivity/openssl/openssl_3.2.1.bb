@@ -192,8 +192,12 @@ do_install_ptest () {
 	install -m755 ${B}/test/p_minimal.so ${D}${PTEST_PATH}/test
 	install -m755 ${B}/test/provider_internal_test.cnf ${D}${PTEST_PATH}/test
 
+	# no no no
+	# use selective find to copy binaries from B. install -s --strip-program.
+	# 
 	# Prune the build tree
 	rm -f ${B}/fuzz/*.* ${B}/test/*.*
+	find ${B}/test -type f -exec ${STRIP} {} +
 
 	cp ${S}/Configure ${B}/configdata.pm ${D}${PTEST_PATH}
 	sed 's|${S}|${PTEST_PATH}|g' -i ${D}${PTEST_PATH}/configdata.pm
