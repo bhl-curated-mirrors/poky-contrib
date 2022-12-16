@@ -109,3 +109,11 @@ class BuiltinFilterTest(unittest.TestCase):
             "remove(v, ['2'], '\\n') \n remove(v, ['1'], '\\n')",
         )
         self.assertEqual(val, "3\n")
+
+    def test_eval(self):
+        val = bb.filter.apply_filters("{'a': 123}", ["eval(v)"])
+        self.assertEqual(val, {"a": 123})
+
+    def test_from_json(self):
+        val = bb.filter.apply_filters('{"a": 123}', ["from_json(v)"])
+        self.assertEqual(val, {"a": 123})

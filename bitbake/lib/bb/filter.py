@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 
+import json
 import builtins
 
 # A select initial set of builtins that are supported in filter expressions
@@ -14,6 +15,7 @@ ALLOWED_BUILTINS = (
     "bool",
     "chr",
     "enumerate",
+    "eval",
     "float",
     "format",
     "hex",
@@ -107,3 +109,8 @@ def remove(val, remove, sep=None):
     if not sep:
         return " ".join(new)
     return sep.join(new)
+
+
+@filter_proc()
+def from_json(val):
+    return json.loads(val)
