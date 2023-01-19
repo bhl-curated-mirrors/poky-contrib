@@ -23,39 +23,6 @@ tweakpath () {
 tweakpath /usr/sbin
 tweakpath /sbin
 
-INST_ARCH=$(uname -m | sed -e "s/i[3-6]86/ix86/" -e "s/x86[-_]64/x86_64/")
-SDK_ARCH=$(echo @SDK_ARCH@ | sed -e "s/i[3-6]86/ix86/" -e "s/x86[-_]64/x86_64/")
-
-INST_GCC_VER=$(gcc --version 2>/dev/null | sed -ne 's/.* \([0-9]\+\.[0-9]\+\)\.[0-9]\+.*/\1/p')
-SDK_GCC_VER='@SDK_GCC_VER@'
-
-verlte () {
-	[  "$1" = "`printf "$1\n$2" | sort -V | head -n1`" ]
-}
-
-verlt() {
-	[ "$1" = "$2" ] && return 1 || verlte $1 $2
-}
-
-verlt `uname -r` @OLDEST_KERNEL@
-if [ $? = 0 ]; then
-	echo "Error: The SDK needs a kernel > @OLDEST_KERNEL@"
-	exit 1
-fi
-
-if [ "$INST_ARCH" != "$SDK_ARCH" ]; then
-	# Allow for installation of ix86 SDK on x86_64 host
-	if [ "$INST_ARCH" != x86_64 -o "$SDK_ARCH" != ix86 ]; then
-		echo "Error: Incompatible SDK installer! Your host is $INST_ARCH and this SDK was built for $SDK_ARCH hosts."
-		exit 1
-	fi
-fi
-
-if ! xz -V > /dev/null 2>&1; then
-	echo "Error: xz is required for installation of this SDK, please install it first"
-	exit 1
-fi
-
 SDK_BUILD_PATH="@SDKPATH@"
 DEFAULT_INSTALL_DIR="@SDKPATHINSTALL@"
 SUDO_EXEC=""
@@ -67,6 +34,7 @@ savescripts=0
 verbose=0
 publish=0
 listcontents=0
+force=0
 while getopts ":yd:npDRSl" OPT; do
 	case $OPT in
 	y)
@@ -95,6 +63,9 @@ while getopts ":yd:npDRSl" OPT; do
 	l)
 		listcontents=1
 		;;
+	f)
+		force=1
+		;;
 	*)
 		echo "Usage: $(basename "$0") [-y] [-d <dir>]"
 		echo "  -y         Automatic yes to all prompts"
@@ -107,10 +78,46 @@ while getopts ":yd:npDRSl" OPT; do
 		echo "  -R         Do not relocate executables"
 		echo "  -D         use set -x to see what is going on"
 		echo "  -l         list files that will be extracted"
+		echo "  -f         don't check for compatible kernels or architecture"
 		exit 1
 		;;
 	esac
 done
+
+INST_ARCH=$(uname -m | sed -e "s/i[3-6]86/ix86/" -e "s/x86[-_]64/x86_64/")
+SDK_ARCH=$(echo @SDK_ARCH@ | sed -e "s/i[3-6]86/ix86/" -e "s/x86[-_]64/x86_64/")
+
+SDK_GCC_VER='@SDK_GCC_VER@'
+INST_GCC_VER=$(gcc --version 2>/dev/null | sed -ne 's/.* \([0-9]\+\.[0-9]\+\)\.[0-9]\+.*/\1/p')
+
+if [ "$force" = "0" ] ; then
+	verlte () {
+		[  "$1" = "`printf "$1\n$2" | sort -V | head -n1`" ]
+	}
+
+	verlt() {
+		[ "$1" = "$2" ] && return 1 || verlte $1 $2
+	}
+
+	verlt `uname -r` @OLDEST_KERNEL@
+	if [ $? = 0 ]; then
+		echo "Error: The SDK needs a kernel > @OLDEST_KERNEL@"
+		exit 1
+	fi
+
+	if [ "$INST_ARCH" != "$SDK_ARCH" ]; then
+		# Allow for installation of ix86 SDK on x86_64 host
+		if [ "$INST_ARCH" != x86_64 -o "$SDK_ARCH" != ix86 ]; then
+			echo "Error: Incompatible SDK installer! Your host is $INST_ARCH and this SDK was built for $SDK_ARCH hosts."
+			exit 1
+		fi
+	fi
+fi
+
+if ! xz -V > /dev/null 2>&1; then
+	echo "Error: xz is required for installation of this SDK, please install it first"
+	exit 1
+fi
 
 payload_offset=$(($(grep -na -m1 "^MARKER:$" "$0"|cut -d':' -f1) + 1))
 if [ "$listcontents" = "1" ] ; then
