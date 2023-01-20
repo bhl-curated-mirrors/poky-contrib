@@ -14,6 +14,7 @@ PV = "0.29.2+git${SRCPV}"
 SRC_URI = "git://gitlab.freedesktop.org/pkg-config/pkg-config.git;branch=master;protocol=https \
            file://pkg-config-esdk.in \
            file://pkg-config-native.in \
+           file://environment.d-pkg.sh \
            file://0001-glib-gettext.m4-Update-AM_GLIB_GNU_GETTEXT-to-match-.patch \
            file://0001-autotools-remove-support-for-the-__int64-type.-See-1.patch \
            file://0001-autotools-use-C99-printf-format-specifiers-on-Window.patch \
@@ -61,6 +62,13 @@ do_install:append:class-native () {
         < ${WORKDIR}/pkg-config-esdk.in > ${B}/pkg-config-esdk
     install -m755 ${B}/pkg-config-esdk ${D}${bindir}/pkg-config-esdk
 }
+
+do_install:append:class-nativesdk () {
+    mkdir -p ${D}${SDKPATHNATIVE}/environment-setup.d
+    install -m 644 ${WORKDIR}/environment.d-pkg.sh ${D}${SDKPATHNATIVE}/environment-setup.d/pkg-config.sh
+    sed -e 's|@LIBDIR@|${libdir}|g' -e 's|@DATADIR@|${datadir}|g' -i ${D}${SDKPATHNATIVE}/environment-setup.d/pkg-config.sh
+}
+FILES:${PN}:append:class-nativesdk = " ${SDKPATHNATIVE}/environment-setup.d/"
 
 pkgconfig_sstate_fixup_esdk () {
 	if [ "${BB_CURRENTTASK}" = "populate_sysroot_setscene" -a "${WITHIN_EXT_SDK}" = "1" ] ; then
