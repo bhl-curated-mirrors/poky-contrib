@@ -32,6 +32,7 @@ python do_generate_content() {
 
     # make sure we only use the SDKTARGETSYSROOT value from 'd'
     localdata.setVar('SDKTARGETSYSROOT', d.getVar('SDKTARGETSYSROOT'))
+    localdata.setVar('datadir', d.getVar('target_datadir', False))
     localdata.setVar('libdir', d.getVar('target_libdir', False))
 
     # Process DEFAULTTUNE
