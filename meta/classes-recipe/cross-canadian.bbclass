@@ -147,6 +147,7 @@ target_exec_prefix := "${exec_prefix}"
 target_base_libdir = "${target_base_prefix}/${baselib}"
 target_libdir = "${target_exec_prefix}/${baselib}"
 target_includedir := "${includedir}"
+target_datadir := "${datadir}"
 
 # Change to place files in SDKPATH
 base_prefix = "${SDKPATHNATIVE}"
