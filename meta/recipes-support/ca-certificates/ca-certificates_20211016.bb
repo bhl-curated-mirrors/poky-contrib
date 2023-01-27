@@ -17,6 +17,7 @@ PACKAGE_WRITE_DEPS += "openssl-native debianutils-native"
 SRCREV = "07de54fdcc5806bde549e1edf60738c6bccf50e8"
 
 SRC_URI = "git://salsa.debian.org/debian/ca-certificates.git;protocol=https;branch=master \
+           file://environment.sh \
            file://0002-update-ca-certificates-use-SYSROOT.patch \
            file://0001-update-ca-certificates-don-t-use-Debianisms-in-run-p.patch \
            file://default-sysroot.patch \
@@ -64,6 +65,13 @@ do_install:append:class-target () {
         ${D}${sbindir}/update-ca-certificates \
         ${D}${mandir}/man8/update-ca-certificates.8
 }
+
+do_install:append:class-nativesdk () {
+    mkdir -p ${D}${SDKPATHNATIVE}/environment-setup.d
+    install -m 644 ${WORKDIR}/environment.sh ${D}${SDKPATHNATIVE}/environment-setup.d/ca-certificates.sh
+    sed -e 's|@SYSCONFDIR@|${sysconfdir}|g' -i ${D}${SDKPATHNATIVE}/environment-setup.d/ca-certificates.sh
+}
+FILES:${PN}:append:class-nativesdk = " ${SDKPATHNATIVE}/environment-setup.d/"
 
 pkg_postinst:${PN}:class-target () {
     SYSROOT="$D" $D${sbindir}/update-ca-certificates
