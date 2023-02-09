@@ -78,6 +78,13 @@ class RpmPM(PackageManager):
         if needfeed:
             self.rpm_repo_dir = oe.path.join(self.d.getVar('WORKDIR'), rpm_repo_workdir)
             create_packages_dir(self.d, oe.path.join(self.rpm_repo_dir, "rpm"), d.getVar("DEPLOY_DIR_RPM"), "package_write_rpm", filterbydependencies)
+            bb.utils.mkdirhier(os.path.join(self.rpm_repo_dir, "repos"))
+            with open(os.path.join(self.rpm_repo_dir, "repos", "oe.repo"), "wt") as f:
+                      f.write("""
+[oe]
+name=oe
+baseurl=file://%s
+""" % self.rpm_repo_dir)
 
         self.saved_packaging_data = self.d.expand('${T}/saved_packaging_data/%s' % self.task_name)
         if not os.path.exists(self.d.expand('${T}/saved_packaging_data')):
@@ -307,7 +314,8 @@ class RpmPM(PackageManager):
         return packages
 
     def update(self):
-        self._invoke_dnf(["makecache", "--refresh"])
+        # TODO how to force update?
+        self._invoke_dnf(["makecache"])
 
     def _invoke_dnf(self, dnf_args, fatal = True, print_output = True ):
         os.environ['RPM_ETCCONFIGDIR'] = self.target_rootfs
@@ -315,12 +323,13 @@ class RpmPM(PackageManager):
         dnf_cmd = "dnf5"
         standard_dnf_args = ["--assumeyes",
                              "--config", oe.path.join(self.target_rootfs, "etc/dnf/dnf.conf"),
-                             "--setopt=reposdir=%s" %(oe.path.join(self.target_rootfs, "etc/yum.repos.d")),
+#                             "--setopt=reposdir=%s" %(oe.path.join(self.target_rootfs, "etc/yum.repos.d")),
                              "--installroot=%s" % (self.target_rootfs),
                              "--setopt=logdir=%s" % (self.d.getVar('T'))
                             ]
         if hasattr(self, "rpm_repo_dir"):
-            standard_dnf_args.append("--repofrompath=oe-repo,%s" % (self.rpm_repo_dir))
+            #standard_dnf_args.append("--repofrompath=oe-repo,%s" % (self.rpm_repo_dir))
+            standard_dnf_args.append("--setopt=reposdir=%s" %(oe.path.join(self.rpm_repo_dir, "repos")))
         cmd = [dnf_cmd] + standard_dnf_args + dnf_args
         bb.note('Running %s' % ' '.join(cmd))
         try:
