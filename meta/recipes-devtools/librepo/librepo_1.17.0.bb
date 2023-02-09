@@ -15,7 +15,8 @@ SRCREV = "ae727d99086f70f39fba5695af5460e1da908c1b"
 
 S = "${WORKDIR}/git"
 
-DEPENDS = "curl glib-2.0 openssl attr gpgme libxml2"
+# attr  https://github.com/rpm-software-management/librepo/commit/1dff9c2c8271ba7019b9a9a4d3612b6d4ff86b2b
+DEPENDS = "curl glib-2.0 openssl gpgme libxml2"
 
 inherit cmake setuptools3-base pkgconfig
 
@@ -29,3 +30,7 @@ EXTRA_OECMAKE = " \
 "
 
 BBCLASSEXTEND = "native nativesdk"
+
+# TODO packageconfig for zchunk
+# TODO packageconfig for python
+# TODO packageconfig for docs
