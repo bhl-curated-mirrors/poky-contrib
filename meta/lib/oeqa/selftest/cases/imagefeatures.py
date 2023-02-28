@@ -234,6 +234,16 @@ UBINIZE_ARGS_mtd_4_256 ?= "-m 4096 -p 256KiB"
                 self.assertTrue(os.path.exists(image_path),
                                 "%s image %s doesn't exist" % (itype, image_path))
 
+    def test_ubifs(self):
+        config = """
+IMAGE_FSTYPES += "ubifs"
+MKUBIFS_ARGS ?= "--min-io-size=2048 --leb-size=129024 --max-leb-cnt=2047 --compr=zstd"
+UBINIZE_ARGS ?= "-m 2048 -p 128KiB -s 512"
+"""
+        # TODO compression type
+        self.write_config(config)
+        bitbake("core-image-minimal")
+
     def test_useradd_static(self):
         config = """
 USERADDEXTENSION = "useradd-staticids"
