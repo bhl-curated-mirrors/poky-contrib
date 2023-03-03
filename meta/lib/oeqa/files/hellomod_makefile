@@ -1,0 +1,9 @@
+obj-m := hellomod.o
+KDIR ?= /usr/src/kernel
+V ?= 0
+
+all:
+	$(MAKE) -C $(KDIR) V=$(V) M=$(PWD) modules
+
+clean:
+	$(MAKE) -C $(KDIR) V=$(V) M=$(PWD) clean

@@ -15,11 +15,11 @@ class KernelModuleTest(OERuntimeTestCase):
 
     @classmethod
     def setUp(cls):
-        src = os.path.join(cls.tc.runtime_files_dir, 'hellomod.c')
+        src = os.path.join(cls.tc.files_dir, 'hellomod.c')
         dst = '/tmp/hellomod.c'
         cls.tc.target.copyTo(src, dst)
 
-        src = os.path.join(cls.tc.runtime_files_dir, 'hellomod_makefile')
+        src = os.path.join(cls.tc.files_dir, 'hellomod_makefile')
         dst = '/tmp/Makefile'
         cls.tc.target.copyTo(src, dst)
 
