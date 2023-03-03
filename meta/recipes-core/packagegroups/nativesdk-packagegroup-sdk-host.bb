@@ -30,6 +30,7 @@ RDEPENDS:${PN} = "\
     nativesdk-bison \
     nativesdk-flex \
     nativesdk-perl-module-integer \
+    nativesdk-bc \
     "
 
 RDEPENDS:${PN}:darwin = "\
