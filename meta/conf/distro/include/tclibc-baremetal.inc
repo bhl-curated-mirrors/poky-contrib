@@ -8,8 +8,8 @@ LIBCOVERRIDE = ":libc-baremetal"
 
 ASSUME_PROVIDED += "virtual/libc virtual/libiconv virtual/crypt"
 
-PREFERRED_PROVIDER_virtual/libc ?= "musl"
-PREFERRED_PROVIDER_virtual/libiconv ?= "musl"
+PREFERRED_PROVIDER_virtual/libc ?= ""
+PREFERRED_PROVIDER_virtual/libiconv ?= ""
 PREFERRED_PROVIDER_virtual/libintl ?= "gettext"
 PREFERRED_PROVIDER_virtual/nativesdk-libintl ?= "nativesdk-glibc"
 PREFERRED_PROVIDER_virtual/nativesdk-libiconv ?= "nativesdk-glibc"
