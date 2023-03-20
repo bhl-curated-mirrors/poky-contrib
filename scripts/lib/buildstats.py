@@ -46,6 +46,11 @@ class BSTask(dict):
             return rusage
 
     @property
+    def start(self):
+        """Start  time"""
+        return self['start_time']
+
+    @property
     def walltime(self):
         """Elapsed wall clock time"""
         return self['elapsed_time']
