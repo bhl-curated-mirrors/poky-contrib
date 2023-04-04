@@ -101,6 +101,9 @@ EXTRA_OEMESON += "-Dfftw=disabled"
 # very good anyway, better alternatives exist (such as the webrtc canceller).
 EXTRA_OEMESON += "-Dadrian-aec=false"
 
+# TODO we should probably enable this
+EXTRA_OEMESON += "-Dasyncns=disabled"
+
 PACKAGECONFIG ??= "${@bb.utils.contains('DISTRO_FEATURES', 'bluetooth', 'bluez5', '', d)} \
                    ${@bb.utils.contains('DISTRO_FEATURES', 'zeroconf', 'avahi', '', d)} \
                    ${@bb.utils.contains('DISTRO_FEATURES', '3g', 'ofono', '', d)} \
@@ -110,6 +113,9 @@ PACKAGECONFIG ??= "${@bb.utils.contains('DISTRO_FEATURES', 'bluetooth', 'bluez5'
 
 PACKAGECONFIG[dbus] = "-Ddbus=enabled,-Ddbus=disabled,dbus"
 PACKAGECONFIG[bluez5] = "-Dbluez5=enabled,-Dbluez5=disabled,bluez5 sbc"
+PACKAGECONFIG[bluez5-gstreamer] = "-Dbluez5-gstreamer=enabled,-Dbluez5-gstreamer=disabled,gstreamer-1.0"
+PACKAGECONFIG[gstreamer] = "-Dgstreamer=enabled,-Dgstreamer=disabled,gstreamer1.0"
+PACKAGECONFIG[elogind] = "-Delogind=enabled,-Delogind=disabled,elogind"
 PACKAGECONFIG[gsettings] = "-Dgsettings=enabled,-Dgsettings=disabled,glib-2.0-native glib-2.0"
 PACKAGECONFIG[ofono] = "-Dbluez5-ofono-headset=true,-Dbluez5-ofono-headset=false,ofono"
 PACKAGECONFIG[gtk] = "-Dgtk=enabled,-Dgtk=disabled,gtk+3"
@@ -123,6 +129,7 @@ PACKAGECONFIG[autospawn-for-root] = ",,,"
 PACKAGECONFIG[lirc] = "-Dlirc=enabled,-Dlirc=disabled,lirc"
 PACKAGECONFIG[webrtc] = "-Dwebrtc-aec=enabled,-Dwebrtc-aec=disabled,webrtc-audio-processing"
 PACKAGECONFIG[ipv6] = "-Dipv6=true,-Dipv6=false,"
+PACKAGECONFIG[tcp-wrappers] = "-Dtcpwrap=enabled,-Dtcpwrap=disabled,tcp-wrappers"
 PACKAGECONFIG[manpages] = "-Dman=true,-Dman=false,"
 
 export TARGET_PFPU = "${TARGET_FPU}"
