@@ -42,6 +42,7 @@ MESONOPTS = " --prefix ${prefix} \
               --localstatedir ${localstatedir} \
               --sharedstatedir ${sharedstatedir} \
               --wrap-mode nodownload \
+              --auto-features enabled \
               --native-file ${WORKDIR}/meson.native"
 
 EXTRA_OEMESON:append = " ${PACKAGECONFIG_CONFARGS}"
