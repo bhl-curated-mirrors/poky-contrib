@@ -183,7 +183,7 @@ class QemuTest(OESelftestTestCase):
         # (such as the exception "Console connection closed unexpectedly")
         # as qemu will disappear when we shut it down
         qemu.runner.allowexit()
-        qemu.run_serial("shutdown -h now")
+        qemu.run_serial_socket("shutdown -h now")
         time_track = 0
         try:
             while True:
