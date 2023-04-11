@@ -27,15 +27,15 @@ class LocalesTest(OESelftestTestCase):
 
         with runqemu("core-image-minimal", ssh=False, runqemuparams='nographic') as qemu:
             cmd = "locale -a"
-            status, output = qemu.run_serial(cmd)
+            status, output = qemu.run_serial_socket(cmd)
             # output must includes fr_FR or fr_FR.UTF-8
-            self.assertEqual(status, 1, msg='locale test command failed: output: %s' % output)
+            self.assertEqual(status, 0, msg='locale test command failed: output: %s' % output)
             self.assertIn("fr_FR", output, msg='locale -a test failed: output: %s' % output)
 
             cmd = "localedef --list-archive -v"
-            status, output = qemu.run_serial(cmd)
+            status, output = qemu.run_serial_socket(cmd)
             # output must includes fr_FR.utf8
-            self.assertEqual(status, 1, msg='localedef test command failed: output: %s' % output)
+            self.assertEqual(status, 0, msg='localedef test command failed: output: %s' % output)
             self.assertIn("fr_FR.utf8", output, msg='localedef test failed: output: %s' % output)
 
     def test_locales_on(self):
