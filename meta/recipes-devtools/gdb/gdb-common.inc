@@ -4,7 +4,7 @@ DESCRIPTION = "GDB, the GNU Project debugger, allows you to see what is going on
 SECTION = "devel"
 DEPENDS = "expat gmp mpfr zlib ncurses virtual/libiconv ${LTTNGUST} bison-native"
 
-LTTNGUST = "lttng-ust"
+LTTNGUST = ""
 LTTNGUST:arc = ""
 LTTNGUST:aarch64 = ""
 LTTNGUST:mipsarch = ""
