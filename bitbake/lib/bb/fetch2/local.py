@@ -41,7 +41,7 @@ class Local(FetchMethod):
         """
         Return the local filename of a given url assuming a successful fetch.
         """
-        return self.localfile_searchpaths(urldata, d)[1]
+        return self.localfile_searchpaths(urldata, d)[-1]
 
     def localfile_searchpaths(self, urldata, d):
         """
@@ -49,23 +49,17 @@ class Local(FetchMethod):
         """
         searched = []
         path = urldata.decodedurl
-        newpath = None
+        newpath = path
         if path[0] == "/":
             logger.debug2("Using absolute %s" % (path))
-            if os.path.exists(path):
-                return [path], path
-            else:
-                return [path], None
+            return [path]
         filespath = d.getVar('FILESPATH')
         if filespath:
             logger.debug2("Searching for %s in paths:\n    %s" % (path, "\n    ".join(filespath.split(":"))))
             newpath, hist = bb.utils.which(filespath, path, history=True)
             logger.debug2("Using %s for %s" % (newpath, path))
             searched.extend(hist)
-        # ensure newpath "" becomes None
-        if newpath:
-            return searched, newpath
-        return searched, None
+        return searched
 
     def need_update(self, ud, d):
         if ud.localpath and os.path.exists(ud.localpath):
