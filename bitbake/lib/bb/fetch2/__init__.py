@@ -1261,7 +1261,7 @@ def get_checksum_file_list(d):
         ud = fetch.ud[u]
         if ud and isinstance(ud.method, local.Local):
             found = False
-            paths, _ = ud.method.localfile_searchpaths(ud, d)
+            paths = ud.method.localfile_searchpaths(ud, d)
             for f in paths:
                 pth = ud.decodedurl
                 if os.path.exists(f):
