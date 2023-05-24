@@ -1433,7 +1433,7 @@ class FetchMethod(object):
         if urldata.localpath is None:
             return False
         # We cannot compute checksums for directories
-        if os.path.isdir(urldata.localpath):
+        if urldata.localpath and os.path.isdir(urldata.localpath):
             return False
         return True
 
