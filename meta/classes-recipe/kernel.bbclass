@@ -201,6 +201,12 @@ python do_symlink_kernsrc () {
             import shutil
             shutil.move(s, kernsrc)
             os.symlink(kernsrc, s)
+
+    # When not using git, we cannot figure out automatically the extracted
+    # directory. So check it and throw a clear error.
+    if not os.path.isdir(os.path.join(d.getVar("WORKDIR"), "git")) and \
+       not os.path.exists(os.path.join(s, "Makefile")):
+        bb.fatal("S is not set to the linux source directory. Check the recipe and set S to the proper extracted subdirectory.")
 }
 # do_patch is normally ordered before do_configure, but
 # externalsrc.bbclass deletes do_patch, breaking the dependency of
