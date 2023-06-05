@@ -412,16 +412,8 @@ do_kernel_checkout() {
 		# case: we have no git repository at all. 
 		# To support low bandwidth options for building the kernel, we'll just 
 		# convert the tree to a git repo and let the rest of the process work unchanged
-		
-		# if ${S} hasn't been set to the proper subdirectory a default of "linux" is 
-		# used, but we can't initialize that empty directory. So check it and throw a
-		# clear error
 
 	        cd ${S}
-		if [ ! -f "Makefile" ]; then
-			bberror "S is not set to the linux source directory. Check "
-			bbfatal "the recipe and set S to the proper extracted subdirectory"
-		fi
 		rm -f .gitignore
 		git init
 		check_git_config
