@@ -58,7 +58,7 @@ do_compile_ptest() {
 }
 
 do_install_ptest() {
-    ./libtool install install ./tests/check-all ${D}${PTEST_PATH}/
+    ${LIBTOOL} --mode=install install ./tests/check-all ${D}${PTEST_PATH}/
 }
 
 BBCLASSEXTEND = "native nativesdk"
