@@ -22,8 +22,9 @@ do_compile_ptest() {
 }
 
 do_install_ptest() {
-    install ${B}/tests/.libs/test* ${D}/${PTEST_PATH}
-    install ${B}/tests/.libs/tdict ${D}/${PTEST_PATH}
+    for file in test1 test2 test3 tdict; do
+        ./libtool --mode=install install ${B}/tests/$file ${D}/${PTEST_PATH}
+    done
     install ${B}/tests/testit.sh ${D}/${PTEST_PATH}
     install ${B}/tests/test-poptrc ${D}/${PTEST_PATH}
 }
