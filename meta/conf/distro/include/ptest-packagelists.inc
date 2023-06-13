@@ -139,6 +139,5 @@ PTESTS_PROBLEMS = "\
     libinput \
     libpam \
     libseccomp \
-    numactl \
     python3-numpy \
 "

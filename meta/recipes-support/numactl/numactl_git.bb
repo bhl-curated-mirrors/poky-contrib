@@ -15,7 +15,6 @@ PV = "2.0.16"
 
 SRC_URI = "git://github.com/numactl/numactl;branch=master;protocol=https \
            file://Fix-the-test-output-format.patch \
-           file://Makefile \
            file://run-ptest \
            file://0001-define-run-test-target.patch \
            file://0001-configure-Check-for-largefile-support.patch \
@@ -39,23 +38,20 @@ do_compile_ptest() {
 
 do_install_ptest() {
     #install tests binaries
-    local test_binaries="distance ftok mbind_mig_pages migrate_pages move_pages \
+    test_binaries="distance ftok mbind_mig_pages migrate_pages move_pages \
     mynode    nodemap node-parse pagesize prefered randmap realloc_test \
     tbitmap tshared"
 
-    [ ! -d ${D}/${PTEST_PATH}/test ] && mkdir -p ${D}/${PTEST_PATH}/test
+    mkdir -p ${D}/${PTEST_PATH}/test
     for i in $test_binaries; do
-        install -m 0755 ${B}/test/.libs/$i ${D}${PTEST_PATH}/test
+        libtool --mode=install install -m 0755 ${B}/test/$i ${D}${PTEST_PATH}/test
     done
 
-    local test_scripts="checktopology checkaffinity printcpu regress regress2 \
+    test_scripts="checktopology checkaffinity printcpu regress regress2 \
         shmtest  runltp bind_range"
     for i in $test_scripts; do
         install -m 0755 ${B}/test/$i ${D}${PTEST_PATH}/test
     done
-
-    install -m 0755 ${WORKDIR}/Makefile ${D}${PTEST_PATH}/
-    install -m 0755 ${B}/.libs/numactl ${D}${PTEST_PATH}/
 }
 
 RDEPENDS:${PN}-ptest = "bash"

@@ -3,8 +3,8 @@
 # If there is numa support, run the tests. Otherwise skip all the tests.
 # Ideally the skipping would happen by the upstream tests.
 if ! numactl -s | grep -q "No NUMA support available on this system."; then
-	make regress1
-	make regress2
+	./test/regress1
+	./test/regress2
 	if  numademo -t -e 10M; then
 		echo "PASS: numademo"
 	else
