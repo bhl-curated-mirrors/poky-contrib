@@ -292,8 +292,14 @@ class ProcessServer():
                     self.quit = True
                     continue
                 try:
+                    pause = False
+                    if "showEnv" in command[0]:
+                        pause = True
+
                     serverlog("Running command %s" % command)
                     reply = self.cooker.command.runCommand(command, self)
+                    #if pause:
+                        #time.sleep(70)
                     serverlog("Sending reply %s" % repr(reply))
                     self.command_channel_reply.send(reply)
                     serverlog("Command Completed (socket: %s)" % os.path.exists(self.sockname))
