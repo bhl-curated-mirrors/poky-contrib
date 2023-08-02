@@ -144,13 +144,14 @@ python cargo_common_do_patch_paths() {
         ud = fetcher.ud[url]
         if ud.type == 'git':
             name = ud.parm.get('name')
-            destsuffix = ud.parm.get('destsuffix')
-            if name is not None and destsuffix is not None:
+            destsuffix = ud.parm.get('destsuffix') or "git"
+            checkout = os.path.join(workdir, destsuffix)
+            if name and os.path.exists(os.path.join(checkout, "Cargo.toml")):
                 if ud.user:
                     repo = '%s://%s@%s%s' % (ud.proto, ud.user, ud.host, ud.path)
                 else:
                     repo = '%s://%s%s' % (ud.proto, ud.host, ud.path)
-                path = '%s = { path = "%s" }' % (name, os.path.join(workdir, destsuffix))
+                path = '%s = { path = "%s" }' % (name, checkout)
                 patches.setdefault(repo, []).append(path)
 
     with open(cargo_config, "a+") as config:
