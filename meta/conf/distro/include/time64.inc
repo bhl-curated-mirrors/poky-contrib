@@ -2,11 +2,19 @@
 # QB_OPT_APPEND:append = " -rtc base=2040-02-02"
 #
 # Note that this does result in ptest failures on qemux86:
-# perl python3 dbus openssl glibc-tests openssh curl glib-2.0 tcl libmodule-build-perl
-# and a subset of those occurs in qemux86-64 as well:
-# curl python3 openssl openssl tcl python3-cryptography
+#
+# (none known at this point)
+#
+# and some ptest failures appear in qemux86-64 as well:
+#
+# openssl https://github.com/openssl/openssl/issues/21671
 #
 # Working to address those (before Y2038 rolls in) will be appreciated.
+#
+# Note: some issues occur on 32 bit regardless of the date set:
+#
+# lttng-tools ptest is not going to pass on 32 bit in any case until 2.14.x is released
+#
 
 GLIBC_64BIT_TIME_FLAGS = " -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64"
 
