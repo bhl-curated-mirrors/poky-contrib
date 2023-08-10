@@ -1,5 +1,5 @@
 # To simulate Y2038 occurring in qemu, add to your build configuration:
-# QB_OPT_APPEND:append = " -rtc base=2040-02-02"
+QB_OPT_APPEND:append = " -rtc base=2040-02-02"
 #
 # Note that this does result in ptest failures on qemux86:
 #
