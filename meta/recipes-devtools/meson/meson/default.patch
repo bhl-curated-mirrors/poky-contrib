@@ -1,0 +1,24 @@
+Emit a warning if a cross property is used (via meson.get_external_property())
+without an explicit value being set.
+
+All default values should be validated to be sure that they're correct, so if we
+emit a warning in Meson then meson.bbclass can catch and expose it.
+
+This is inappropriate as upstream are thinking about improving how cc.run()
+handles the cross case.
+
+Upstream-Status: Inappropriate
+Signed-off-by: Ross Burton <ross.burton@arm.com>
+
+diff --git a/mesonbuild/interpreter/mesonmain.py b/mesonbuild/interpreter/mesonmain.py
+index 01d0029a7..936b03fbf 100644
+--- a/mesonbuild/interpreter/mesonmain.py
++++ b/mesonbuild/interpreter/mesonmain.py
+@@ -416,6 +416,7 @@ class MesonMain(MesonInterpreterObject):
+             return self.interpreter.environment.properties[machine][propname]
+         except KeyError:
+             if fallback is not None:
++                mlog.warning(f"Cross property {propname} is using default value {fallback}")
+                 return fallback
+             raise InterpreterException(f'Unknown property for {machine.get_lower_case_name()} machine: {propname}')
+ 
