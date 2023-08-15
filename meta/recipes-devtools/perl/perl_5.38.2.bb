@@ -18,6 +18,7 @@ SRC_URI = "https://www.cpan.org/src/5.0/perl-${PV}.tar.gz;name=perl \
            file://determinism.patch \
            file://0001-cpan-Sys-Syslog-Makefile.PL-Fix-_PATH_LOG-for-determ.patch \
            file://0001-Fix-intermittent-failure-of-test-t-op-sigsystem.t.patch \
+           file://0001-various-timespec.tv_sec-is-time_t-not-long.patch \
            "
 SRC_URI:append:class-native = " \
            file://perl-configpm-switch.patch \

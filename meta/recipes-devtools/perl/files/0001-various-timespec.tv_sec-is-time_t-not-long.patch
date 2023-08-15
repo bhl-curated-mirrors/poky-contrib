@@ -1,0 +1,61 @@
+From 45f9457a75bf2b38f2b3d8aa8ceedc444f657484 Mon Sep 17 00:00:00 2001
+From: Alexander Kanavin <alex@linutronix.de>
+Date: Tue, 15 Aug 2023 13:55:06 +0200
+Subject: [PATCH] various: timespec.tv_sec is time_t, not long
+
+This matters on 32 bit systems configured with 64 bit time_t
+(so they survive beyond 2038).
+
+Upstream-Status: Backport [https://github.com/Perl/perl5/pull/21379]
+Signed-off-by: Alexander Kanavin <alex@linutronix.de>
+---
+ dist/threads-shared/shared.xs | 2 +-
+ doio.c                        | 4 ++--
+ pp_sys.c                      | 2 +-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/dist/threads-shared/shared.xs b/dist/threads-shared/shared.xs
+index 6a7f03c..a1a8032 100644
+--- a/dist/threads-shared/shared.xs
++++ b/dist/threads-shared/shared.xs
+@@ -700,7 +700,7 @@ Perl_sharedsv_cond_timedwait(perl_cond *cond, perl_mutex *mut, double abs)
+     struct timespec ts;
+     int got_it = 0;
+ 
+-    ts.tv_sec = (long)abs;
++    ts.tv_sec = (time_t)abs;
+     abs -= (NV)ts.tv_sec;
+     ts.tv_nsec = (long)(abs * 1000000000.0);
+ 
+diff --git a/doio.c b/doio.c
+index f0d451a..39d7b39 100644
+--- a/doio.c
++++ b/doio.c
+@@ -2819,9 +2819,9 @@ nothing in the core.
+            else {
+                 Zero(&utbuf, sizeof utbuf, char);
+ #ifdef HAS_FUTIMES
+-                utbuf[0].tv_sec = (long)SvIV(accessed);  /* time accessed */
++                utbuf[0].tv_sec = (time_t)SvIV(accessed);  /* time accessed */
+                 utbuf[0].tv_usec = 0;
+-                utbuf[1].tv_sec = (long)SvIV(modified);  /* time modified */
++                utbuf[1].tv_sec = (time_t)SvIV(modified);  /* time modified */
+                 utbuf[1].tv_usec = 0;
+ #elif defined(BIG_TIME)
+                 utbuf.actime = (Time_t)SvNV(accessed);  /* time accessed */
+diff --git a/pp_sys.c b/pp_sys.c
+index 4cbe323..2855949 100644
+--- a/pp_sys.c
++++ b/pp_sys.c
+@@ -1217,7 +1217,7 @@ PP(pp_sselect)
+         value = SvNV_nomg(sv);
+         if (value < 0.0)
+             value = 0.0;
+-        timebuf.tv_sec = (long)value;
++        timebuf.tv_sec = (time_t)value;
+         value -= (NV)timebuf.tv_sec;
+         timebuf.tv_usec = (long)(value * 1000000.0);
+     }
+-- 
+2.30.2
+
