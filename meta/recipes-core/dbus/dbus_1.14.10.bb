@@ -14,6 +14,8 @@ SRC_URI = "https://dbus.freedesktop.org/releases/dbus/dbus-${PV}.tar.xz \
            file://run-ptest \
            file://tmpdir.patch \
            file://dbus-1.init \
+           file://0001-build-Define-DBUS_INT64_MODIFIER-analogous-to-G_GINT.patch \
+           file://0002-time-use-dbus_int64_t-for-seconds-instead-of-long.patch \
            "
 
 SRC_URI[sha256sum] = "ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f"

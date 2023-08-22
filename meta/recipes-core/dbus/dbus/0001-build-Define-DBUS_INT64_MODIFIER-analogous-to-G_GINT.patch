@@ -1,0 +1,334 @@
+From e3e0afbe9c15ee92e7ecdf758f5feb18ce8152d2 Mon Sep 17 00:00:00 2001
+From: Simon McVittie <smcv@collabora.com>
+Date: Fri, 1 Apr 2022 15:57:07 +0100
+Subject: [PATCH] build: Define DBUS_INT64_MODIFIER, analogous to
+ G_GINT64_MODIFIER
+
+Using PRId64, etc. to print dbus_int64_t or dbus_uint64_t is not 100%
+portable. On platforms where both long and long long are 64-bit (such as
+Linux and macOS), we will prefer to define dbus_int64_t as long.
+If the operating system has chosen to define int64_t as long long,
+which is apparently the case on macOS, then the compiler can warn that
+we are passing a long argument to PRId64, which is "lld" and therefore
+expects a long long argument (even though that ends up with the same
+bit-pattern being used).
+
+We can't necessarily just use int64_t and uint64_t directly, even if all
+our supported platforms have them available now, because swapping
+dbus_int64_t between long and long long might change C++ name mangling,
+causing ABI breaks in third-party libraries if they define C++ functions
+that take a dbus_int64_t argument.
+
+Signed-off-by: Simon McVittie <smcv@collabora.com>
+Upstream-Status: Backport
+Signed-off-by: Alexander Kanavin <alex@linutronix.de>
+---
+ bus/containers.c                             |  4 +--
+ cmake/ConfigureChecks.cmake                  |  9 ++++++
+ configure.ac                                 |  9 ++++++
+ dbus/dbus-arch-deps.h.in                     |  1 +
+ dbus/dbus-marshal-basic.c                    |  6 +---
+ dbus/dbus-types.h                            | 21 +++++++++++++
+ test/Makefile.am                             |  2 +-
+ test/internals/dbus-marshal-recursive-util.c |  8 ++---
+ test/internals/printf.c                      | 31 ++++++++++++++++++++
+ tools/dbus-print-message.c                   | 13 ++------
+ 10 files changed, 79 insertions(+), 25 deletions(-)
+
+diff --git a/bus/containers.c b/bus/containers.c
+index 8abeca1f..1a95a4a5 100644
+--- a/bus/containers.c
++++ b/bus/containers.c
+@@ -414,10 +414,8 @@ bus_container_instance_new (BusContext *context,
+       goto fail;
+     }
+ 
+-  /* We assume PRIu64 exists on all Unix platforms: it's ISO C99, and the
+-   * only non-C99 platform we support is MSVC on Windows. */
+   if (!_dbus_string_append_printf (&path,
+-                                   "/org/freedesktop/DBus/Containers1/c%" PRIu64,
++                                   "/org/freedesktop/DBus/Containers1/c%" DBUS_INT64_MODIFIER "u",
+                                    containers->next_container_id++))
+     {
+       BUS_SET_OOM (error);
+diff --git a/cmake/ConfigureChecks.cmake b/cmake/ConfigureChecks.cmake
+index e3a91711..ad2e2041 100644
+--- a/cmake/ConfigureChecks.cmake
++++ b/cmake/ConfigureChecks.cmake
+@@ -182,22 +182,31 @@ if(SIZEOF_INT EQUAL 8)
+     set(DBUS_INT64_TYPE "int")
+     set(DBUS_INT64_CONSTANT  "(val)")
+     set(DBUS_UINT64_CONSTANT "(val##U)")
++    set(DBUS_INT64_MODIFIER  "")
+ elseif(SIZEOF_LONG EQUAL 8)
+     set(DBUS_INT64_TYPE "long")
+     set(DBUS_INT64_CONSTANT  "(val##L)")
+     set(DBUS_UINT64_CONSTANT "(val##UL)")
++    set(DBUS_INT64_MODIFIER  "l")
+ elseif(SIZEOF_LONG_LONG EQUAL 8)
+     set(DBUS_INT64_TYPE "long long")
+     set(DBUS_INT64_CONSTANT  "(val##LL)")
+     set(DBUS_UINT64_CONSTANT "(val##ULL)")
++    set(DBUS_INT64_MODIFIER  "ll")
+ elseif(SIZEOF___INT64 EQUAL 8)
+     set(DBUS_INT64_TYPE "__int64")
+     set(DBUS_INT64_CONSTANT  "(val##i64)")
+     set(DBUS_UINT64_CONSTANT "(val##ui64)")
++    set(DBUS_INT64_MODIFIER  "I64")
+ else(SIZEOF_INT EQUAL 8)
+     message(FATAL_ERROR "Could not find a 64-bit integer type")
+ endif()
+ 
++# MSVCRT.dll printf() doesn't support %lld
++if(WIN32 AND NOT CYGWIN)
++    set(DBUS_INT64_MODIFIER  "I64")
++endif()
++
+ # DBUS_INT32_TYPE
+ if(SIZEOF_INT EQUAL 4)
+     set(DBUS_INT32_TYPE "int")
+diff --git a/configure.ac b/configure.ac
+index f351c387..d207ca8a 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -450,24 +450,31 @@ $ac_cv_sizeof_int)
+   dbusint64=int
+   dbusint64_constant='(val)'
+   dbusuint64_constant='(val)'
++  dbusint64_modifier=""
+   ;;
+ $ac_cv_sizeof_long)
+   dbusint64=long
+   dbusint64_constant='(val##L)'
+   dbusuint64_constant='(val##UL)'
++  dbusint64_modifier="l"
+   ;;
+ $ac_cv_sizeof_long_long)
+   dbusint64='long long'
+   dbusint64_constant='(val##LL)'
+   dbusuint64_constant='(val##ULL)'
++  dbusint64_modifier="ll"
+   ;;
+ $ac_cv_sizeof___int64)
+   dbusint64=__int64
+   dbusint64_constant='(val##i64)'
+   dbusuint64_constant='(val##ui64)'
++  dbusint64_modifier="I64"
+   ;;
+ esac
+ 
++# MSVCRT.dll printf() doesn't support %lld
++AS_IF([test "$dbus_win" = yes], [dbusint64_modifier="I64"])
++
+ AS_IF(
+   [test -z "$dbusint64"],
+   [AC_MSG_RESULT([not found])
+@@ -482,12 +489,14 @@ Please report a bug here with details of your platform and compiler:
+         DBUS_INT64_TYPE="$dbusint64"
+         DBUS_INT64_CONSTANT="$dbusint64_constant"
+         DBUS_UINT64_CONSTANT="$dbusuint64_constant"
++        DBUS_INT64_MODIFIER="$dbusint64_modifier"
+         AC_MSG_RESULT($DBUS_INT64_TYPE)
+   ])
+ 
+ AC_SUBST(DBUS_INT64_TYPE)
+ AC_SUBST(DBUS_INT64_CONSTANT)
+ AC_SUBST(DBUS_UINT64_CONSTANT)
++AC_SUBST(DBUS_INT64_MODIFIER)
+ 
+ ### see what 32-bit int is called
+ AC_MSG_CHECKING([32-bit integer type])
+diff --git a/dbus/dbus-arch-deps.h.in b/dbus/dbus-arch-deps.h.in
+index dfc3589e..2dc58945 100644
+--- a/dbus/dbus-arch-deps.h.in
++++ b/dbus/dbus-arch-deps.h.in
+@@ -35,6 +35,7 @@ DBUS_BEGIN_DECLS
+ #define DBUS_HAVE_INT64 1
+ _DBUS_GNUC_EXTENSION typedef @DBUS_INT64_TYPE@ dbus_int64_t;
+ _DBUS_GNUC_EXTENSION typedef unsigned @DBUS_INT64_TYPE@ dbus_uint64_t;
++#define DBUS_INT64_MODIFIER "@DBUS_INT64_MODIFIER@"
+ 
+ #define DBUS_INT64_CONSTANT(val)  (_DBUS_GNUC_EXTENSION @DBUS_INT64_CONSTANT@)
+ #define DBUS_UINT64_CONSTANT(val) (_DBUS_GNUC_EXTENSION @DBUS_UINT64_CONSTANT@)
+diff --git a/dbus/dbus-marshal-basic.c b/dbus/dbus-marshal-basic.c
+index ab080d0e..097aaf6a 100644
+--- a/dbus/dbus-marshal-basic.c
++++ b/dbus/dbus-marshal-basic.c
+@@ -30,10 +30,6 @@
+ 
+ #include <string.h>
+ 
+-#if !defined(PRIx64) && defined(DBUS_WIN)
+-#define PRIx64 "I64x"
+-#endif
+-
+ #if defined(__GNUC__) && (__GNUC__ >= 4)
+ # define _DBUS_ASSERT_ALIGNMENT(type, op, val) \
+   _DBUS_STATIC_ASSERT (__extension__ __alignof__ (type) op val)
+@@ -1397,7 +1393,7 @@ _dbus_verbose_bytes (const unsigned char *data,
+           if (i > 7 &&
+               _DBUS_ALIGN_ADDRESS (&data[i], 8) == &data[i])
+             {
+-              _dbus_verbose (" u64: 0x%" PRIx64,
++              _dbus_verbose (" u64: 0x%" DBUS_INT64_MODIFIER "x",
+                              *(dbus_uint64_t*)&data[i-8]);
+               _dbus_verbose (" dbl: %g",
+                              *(double*)&data[i-8]);
+diff --git a/dbus/dbus-types.h b/dbus/dbus-types.h
+index 85f603ae..b953b580 100644
+--- a/dbus/dbus-types.h
++++ b/dbus/dbus-types.h
+@@ -114,6 +114,27 @@ typedef dbus_uint32_t  dbus_bool_t;
+  * giving a literal such as "325145246765ULL"
+  */
+ 
++/**
++ * @def DBUS_INT64_MODIFIER
++ *
++ * A string literal for a length modifier that is appropriate to print
++ * the #dbus_int64_t and #dbus_uint64_t types.
++ * For example, it might be an empty string, "l", "ll", or "I64".
++ *
++ * This modifier needs to be concatenated with a literal "%" and a
++ * conversion specifier that can print signed or unsigned integers,
++ * for example:
++ *
++ * @code
++ * dbus_int64_t i = -123;
++ * dbus_uint64_t u = 456;
++ *
++ * printf ("signed: %" DBUS_INT64_MODIFIER "d\n", i);
++ * printf ("unsigned decimal: %" DBUS_INT64_MODIFIER "u\n", u);
++ * printf ("unsigned hex: 0x%" DBUS_INT64_MODIFIER "x\n", x);
++ * @endcode
++ */
++
+ /**
+  * An 8-byte struct you could use to access int64 without having
+  * int64 support. Use #dbus_int64_t or #dbus_uint64_t instead.
+diff --git a/test/Makefile.am b/test/Makefile.am
+index b6cd093a..7ef41c21 100644
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -146,7 +146,7 @@ test_assertions_SOURCES = internals/assertions.c
+ test_assertions_LDADD = libdbus-testutils.la $(GLIB_LIBS)
+ 
+ test_printf_SOURCES = internals/printf.c
+-test_printf_LDADD = $(top_builddir)/dbus/libdbus-internal.la
++test_printf_LDADD = libdbus-testutils.la
+ 
+ test_refs_SOURCES = internals/refs.c
+ test_refs_LDADD = libdbus-testutils.la $(GLIB_LIBS)
+diff --git a/test/internals/dbus-marshal-recursive-util.c b/test/internals/dbus-marshal-recursive-util.c
+index f81efffa..0727225a 100644
+--- a/test/internals/dbus-marshal-recursive-util.c
++++ b/test/internals/dbus-marshal-recursive-util.c
+@@ -34,10 +34,6 @@
+ #include <dbus/dbus-test-tap.h>
+ #include <string.h>
+ 
+-#if !defined(PRIx64) && defined(DBUS_WIN)
+-#define PRIx64 "I64x"
+-#endif
+-
+ /** turn this on to get deluged in TypeWriter verbose spam */
+ #define RECURSIVE_MARSHAL_WRITE_TRACE 0
+ 
+@@ -2629,7 +2625,9 @@ double_read_value (TestTypeNode   *node,
+   expected = double_from_seed (seed);
+ 
+   if (!_DBUS_DOUBLES_BITWISE_EQUAL (v, expected))
+-    _dbus_test_fatal ("Expected double %g got %g\n bits = 0x%" PRIx64 " vs.\n bits = 0x%" PRIx64,
++    _dbus_test_fatal ("Expected double %g got %g\n"
++                      " bits = 0x%" DBUS_INT64_MODIFIER "x vs.\n"
++                      " bits = 0x%" DBUS_INT64_MODIFIER "x",
+                       expected, v,
+                       *(dbus_uint64_t*)(char*)&expected,
+                       *(dbus_uint64_t*)(char*)&v);
+diff --git a/test/internals/printf.c b/test/internals/printf.c
+index 1160b2ae..3f6b0f96 100644
+--- a/test/internals/printf.c
++++ b/test/internals/printf.c
+@@ -66,6 +66,34 @@ do_test (int minimum,
+ #define X_TIMES_512  X_TIMES_256 X_TIMES_256
+ #define X_TIMES_1024 X_TIMES_512 X_TIMES_512
+ 
++static void
++print64 (void)
++{
++  dbus_int64_t i = -123;
++  dbus_uint64_t u = 456;
++  DBusString buf = _DBUS_STRING_INIT_INVALID;
++  const char expected[] = "i=-123;u=456;x=1c8";
++
++  if (!_dbus_string_init (&buf))
++    _dbus_test_fatal ("out of memory");
++
++  if (!_dbus_string_append_printf (&buf,
++                                   "i=%" DBUS_INT64_MODIFIER "d;"
++                                   "u=%" DBUS_INT64_MODIFIER "u;"
++                                   "x=%" DBUS_INT64_MODIFIER "x",
++                                   i, u, u))
++    _dbus_test_fatal ("out of memory");
++
++  if (_dbus_string_get_length (&buf) != (int) strlen (expected) ||
++      strcmp (_dbus_string_get_const_data (&buf), expected) != 0)
++    _dbus_test_fatal ("expected: \"%s\", got: %d chars \"%s\"",
++                      expected,
++                      _dbus_string_get_length (&buf),
++                      _dbus_string_get_const_data (&buf));
++
++  _dbus_string_free (&buf);
++}
++
+ /* This test outputs TAP syntax: http://testanything.org/ */
+ int
+ main (int argc,
+@@ -101,6 +129,9 @@ main (int argc,
+     }
+   printf ("ok %d\n", ++test_num);
+ 
++  print64 ();
++  printf ("ok %d\n", ++test_num);
++
+   /* Tell the TAP driver that we have done all the tests we plan to do.
+    * This is how it can distinguish between an unexpected exit and
+    * successful completion. */
+diff --git a/tools/dbus-print-message.c b/tools/dbus-print-message.c
+index 2ce7f68b..22ee6824 100644
+--- a/tools/dbus-print-message.c
++++ b/tools/dbus-print-message.c
+@@ -43,15 +43,6 @@
+ #include <inttypes.h>
+ #endif
+ 
+-#if defined(DBUS_WIN)
+-#if !defined(PRId64)
+-#define PRId64 "I64d"
+-#endif
+-#if !defined(PRIu64)
+-#define PRIu64 "I64u"
+-#endif
+-#endif
+-
+ #ifndef HAVE_SOCKLEN_T
+ #define socklen_t int
+ #endif
+@@ -401,7 +392,7 @@ print_iter (DBusMessageIter *iter, dbus_bool_t literal, int depth)
+           {
+             dbus_int64_t val;
+             dbus_message_iter_get_basic (iter, &val);
+-            printf ("int64 %" PRId64 "\n", val);
++            printf ("int64 %" DBUS_INT64_MODIFIER "d\n", val);
+             break;
+           }
+ 
+@@ -409,7 +400,7 @@ print_iter (DBusMessageIter *iter, dbus_bool_t literal, int depth)
+           {
+             dbus_uint64_t val;
+             dbus_message_iter_get_basic (iter, &val);
+-            printf ("uint64 %" PRIu64 "\n", val);
++            printf ("uint64 %" DBUS_INT64_MODIFIER "u\n", val);
+             break;
+           }
+ 

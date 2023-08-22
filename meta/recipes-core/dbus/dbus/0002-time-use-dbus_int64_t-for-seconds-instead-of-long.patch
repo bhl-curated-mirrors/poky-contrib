@@ -1,0 +1,685 @@
+From a911f5a88f9178ba413739a4336927107668fad0 Mon Sep 17 00:00:00 2001
+From: Alexander Kanavin <alex@linutronix.de>
+Date: Tue, 22 Aug 2023 14:02:16 +0200
+Subject: [PATCH] time: use dbus_int64_t for seconds instead of long
+
+On 32 bit systems long will overflow in 2038, causing complete breakage.
+This is confirmed by running dbus's test suite on a 32 bit system
+with system time set to 2040 (and configured to use 64 bit time_t of course).
+
+Note that both timespec and timeval are specified with time_t for the
+seconds component. This should propagate everywhere where that data is
+passed and stored, but previously _dbus_get_monotonic_time() and
+_dbus_get_monotonic_time() would truncate it to long.
+
+Also add a function for parsing dbus_int64_t from
+files, as existing functions can only handle long.
+
+Upstream-Status: Backport [https://gitlab.freedesktop.org/dbus/dbus/-/merge_requests/444]
+Signed-off-by: Alexander Kanavin <alex@linutronix.de>
+---
+ bus/connection.c                            |  5 +--
+ bus/expirelist.c                            | 19 ++++++----
+ bus/expirelist.h                            |  2 +-
+ dbus/dbus-connection.c                      |  8 +++--
+ dbus/dbus-internals.c                       |  7 ++--
+ dbus/dbus-keyring.c                         | 26 +++++++-------
+ dbus/dbus-mainloop.c                        | 14 ++++----
+ dbus/dbus-string.h                          |  5 +++
+ dbus/dbus-sysdeps-unix.c                    |  4 +--
+ dbus/dbus-sysdeps-win.c                     |  4 +--
+ dbus/dbus-sysdeps.c                         | 39 +++++++++++++++++++++
+ dbus/dbus-sysdeps.h                         |  4 +--
+ test/name-test/test-pending-call-dispatch.c | 10 +++---
+ test/name-test/test-pending-call-timeout.c  | 10 +++---
+ test/test-utils.c                           |  4 +--
+ tools/dbus-monitor.c                        | 15 ++++----
+ tools/dbus-print-message.c                  |  4 +--
+ tools/dbus-print-message.h                  |  2 +-
+ tools/dbus-run-session.c                    |  5 +--
+ tools/dbus-send.c                           |  3 +-
+ 20 files changed, 125 insertions(+), 65 deletions(-)
+
+diff --git a/bus/connection.c b/bus/connection.c
+index 95bc6c0a..ead0f830 100644
+--- a/bus/connection.c
++++ b/bus/connection.c
+@@ -105,7 +105,7 @@ typedef struct
+   BusSELinuxID *selinux_id;
+   BusAppArmorConfinement *apparmor_confinement;
+ 
+-  long connection_tv_sec;  /**< Time when we connected (seconds component) */
++  dbus_int64_t connection_tv_sec;  /**< Time when we connected (seconds component) */
+   long connection_tv_usec; /**< Time when we connected (microsec component) */
+   int stamp;               /**< connections->stamp last time we were traversed */
+   BusExtraHeaders want_headers;
+@@ -965,7 +965,8 @@ bus_connections_expire_incomplete (BusConnections *connections)
+   
+   if (connections->incomplete != NULL)
+     {
+-      long tv_sec, tv_usec;
++      dbus_int64_t tv_sec;
++      long tv_usec;
+       DBusList *link;
+       int auth_timeout;
+       
+diff --git a/bus/expirelist.c b/bus/expirelist.c
+index 77dbf718..11c7e5a5 100644
+--- a/bus/expirelist.c
++++ b/bus/expirelist.c
+@@ -123,7 +123,7 @@ bus_expire_list_recheck_immediately (BusExpireList *list)
+ 
+ static int
+ do_expiration_with_monotonic_time (BusExpireList *list,
+-                                   long           tv_sec,
++                                   dbus_int64_t   tv_sec,
+                                    long           tv_usec)
+ {
+   DBusList *link;
+@@ -191,7 +191,8 @@ bus_expirelist_expire (BusExpireList *list)
+ 
+   if (list->items != NULL)
+     {
+-      long tv_sec, tv_usec;
++      dbus_int64_t tv_sec;
++      long tv_usec;
+ 
+       _dbus_get_monotonic_time (&tv_sec, &tv_usec);
+ 
+@@ -303,7 +304,7 @@ test_expire_func (BusExpireList *list,
+ }
+ 
+ static void
+-time_add_milliseconds (long *tv_sec,
++time_add_milliseconds (dbus_int64_t *tv_sec,
+                        long *tv_usec,
+                        int   milliseconds)
+ {
+@@ -321,10 +322,14 @@ bus_expire_list_test (const char *test_data_dir _DBUS_GNUC_UNUSED)
+ {
+   DBusLoop *loop;
+   BusExpireList *list;
+-  long tv_sec, tv_usec;
+-  long tv_sec_not_expired, tv_usec_not_expired;
+-  long tv_sec_expired, tv_usec_expired;
+-  long tv_sec_past, tv_usec_past;
++  dbus_int64_t tv_sec;
++  long tv_usec;
++  dbus_int64_t tv_sec_not_expired;
++  long tv_usec_not_expired;
++  dbus_int64_t tv_sec_expired;
++  long tv_usec_expired;
++  dbus_int64_t tv_sec_past;
++  long tv_usec_past;
+   TestExpireItem *item;
+   int next_interval;
+   dbus_bool_t result = FALSE;
+diff --git a/bus/expirelist.h b/bus/expirelist.h
+index 887cb97b..77893ca5 100644
+--- a/bus/expirelist.h
++++ b/bus/expirelist.h
+@@ -39,7 +39,7 @@ typedef dbus_bool_t (* BusExpireFunc) (BusExpireList *list,
+ /* embed this in a child expire item struct */
+ struct BusExpireItem
+ {
+-  long added_tv_sec;  /**< Time we were added (seconds component) */
++  dbus_int64_t added_tv_sec;  /**< Time we were added (seconds component) */
+   long added_tv_usec; /**< Time we were added (microsec component) */
+ };
+ 
+diff --git a/dbus/dbus-connection.c b/dbus/dbus-connection.c
+index e6fedbbe..bbb43855 100644
+--- a/dbus/dbus-connection.c
++++ b/dbus/dbus-connection.c
+@@ -2391,8 +2391,10 @@ check_for_reply_and_update_dispatch_unlocked (DBusConnection  *connection,
+ void
+ _dbus_connection_block_pending_call (DBusPendingCall *pending)
+ {
+-  long start_tv_sec, start_tv_usec;
+-  long tv_sec, tv_usec;
++  dbus_int64_t start_tv_sec;
++  long start_tv_usec;
++  dbus_int64_t tv_sec;
++  long tv_usec;
+   DBusDispatchStatus status;
+   DBusConnection *connection;
+   dbus_uint32_t client_serial;
+@@ -2423,7 +2425,7 @@ _dbus_connection_block_pending_call (DBusPendingCall *pending)
+     {
+       timeout_milliseconds = dbus_timeout_get_interval (timeout);
+ 
+-      _dbus_verbose ("dbus_connection_send_with_reply_and_block(): will block %d milliseconds for reply serial %u from %ld sec %ld usec\n",
++      _dbus_verbose ("dbus_connection_send_with_reply_and_block(): will block %d milliseconds for reply serial %u from %" DBUS_INT64_MODIFIER "d sec %ld usec\n",
+                      timeout_milliseconds,
+                      client_serial,
+                      start_tv_sec, start_tv_usec);
+diff --git a/dbus/dbus-internals.c b/dbus/dbus-internals.c
+index ab498b15..2dea34da 100644
+--- a/dbus/dbus-internals.c
++++ b/dbus/dbus-internals.c
+@@ -426,7 +426,8 @@ _dbus_verbose_real (
+   va_list args;
+   static dbus_bool_t need_pid = TRUE;
+   int len;
+-  long sec, usec;
++  dbus_int64_t sec;
++  long usec;
+   
+   /* things are written a bit oddly here so that
+    * in the non-verbose case we just have the one
+@@ -442,7 +443,7 @@ _dbus_verbose_real (
+       _dbus_print_thread ();
+     }
+   _dbus_get_real_time (&sec, &usec);
+-  fprintf (stderr, "%ld.%06ld ", sec, usec);
++  fprintf (stderr, "%" DBUS_INT64_MODIFIER "d.%06ld ", sec, usec);
+ #endif
+ 
+   /* Only print pid again if the next line is a new line */
+@@ -721,7 +722,7 @@ _dbus_generate_uuid (DBusGUID  *uuid,
+                      DBusError *error)
+ {
+   DBusError rand_error;
+-  long now;
++  dbus_int64_t now;
+ 
+   dbus_error_init (&rand_error);
+ 
+diff --git a/dbus/dbus-keyring.c b/dbus/dbus-keyring.c
+index d2df3d86..fa8aee93 100644
+--- a/dbus/dbus-keyring.c
++++ b/dbus/dbus-keyring.c
+@@ -94,10 +94,7 @@ typedef struct
+ {
+   dbus_int32_t id; /**< identifier used to refer to the key */
+ 
+-  long creation_time; /**< when the key was generated,
+-                       *   as unix timestamp. signed long
+-                       *   matches struct timeval.
+-                       */
++  dbus_int64_t creation_time; /**< when the key was generated, in seconds since 1970-01-01 */
+   
+   DBusString secret; /**< the actual key */
+ 
+@@ -284,7 +281,7 @@ add_new_key (DBusKey  **keys_p,
+   DBusKey *new;
+   DBusString bytes;
+   int id;
+-  long timestamp;
++  dbus_int64_t timestamp;
+   const unsigned char *s;
+   dbus_bool_t retval;
+   DBusKey *keys;
+@@ -397,7 +394,7 @@ _dbus_keyring_reload (DBusKeyring *keyring,
+   DBusKey *keys;
+   int n_keys;
+   int i;
+-  long now;
++  dbus_int64_t now;
+   DBusError tmp_error;
+ 
+   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+@@ -463,7 +460,7 @@ _dbus_keyring_reload (DBusKeyring *keyring,
+       int next;
+       long val;
+       int id;
+-      long timestamp;
++      dbus_int64_t timestamp;
+       int len;
+       int end;
+       DBusKey *new;
+@@ -489,7 +486,7 @@ _dbus_keyring_reload (DBusKeyring *keyring,
+ 
+       _dbus_string_skip_blank (&line, next, &next);
+       
+-      if (!_dbus_string_parse_int (&line, next, &timestamp, &next))
++      if (!_dbus_string_parse_int64 (&line, next, &timestamp, &next))
+         {
+           _dbus_verbose ("could not parse secret key timestamp\n");
+           continue;
+@@ -499,7 +496,7 @@ _dbus_keyring_reload (DBusKeyring *keyring,
+           (now + MAX_TIME_TRAVEL_SECONDS) < timestamp ||
+           (now - EXPIRE_KEYS_TIMEOUT_SECONDS) > timestamp)
+         {
+-          _dbus_verbose ("dropping/ignoring %ld-seconds old key with timestamp %ld as current time is %ld\n",
++          _dbus_verbose ("dropping/ignoring %" DBUS_INT64_MODIFIER "d-seconds old key with timestamp %" DBUS_INT64_MODIFIER "d as current time is %" DBUS_INT64_MODIFIER "d\n",
+                          now - timestamp, timestamp, now);
+           continue;
+         }
+@@ -574,8 +571,8 @@ _dbus_keyring_reload (DBusKeyring *keyring,
+           if (!_dbus_string_append_byte (&contents, ' '))
+             goto nomem;
+ 
+-          if (!_dbus_string_append_int (&contents,
+-                                        keys[i].creation_time))
++          if (!_dbus_string_append_printf (&contents, "%" DBUS_INT64_MODIFIER "d",
++                                           keys[i].creation_time))
+             goto nomem;
+ 
+           if (!_dbus_string_append_byte (&contents, ' '))
+@@ -908,7 +905,8 @@ static DBusKey*
+ find_recent_key (DBusKeyring *keyring)
+ {
+   int i;
+-  long tv_sec, tv_usec;
++  dbus_int64_t tv_sec;
++  long tv_usec;
+ 
+   _dbus_get_real_time (&tv_sec, &tv_usec);
+   
+@@ -917,7 +915,7 @@ find_recent_key (DBusKeyring *keyring)
+     {
+       DBusKey *key = &keyring->keys[i];
+ 
+-      _dbus_verbose ("Key %d is %ld seconds old\n",
++      _dbus_verbose ("Key %d is %" DBUS_INT64_MODIFIER "d seconds old\n",
+                      i, tv_sec - key->creation_time);
+       
+       if ((tv_sec - NEW_KEY_TIMEOUT_SECONDS) < key->creation_time)
+@@ -1112,7 +1110,7 @@ _dbus_keyring_test (const char *test_data_dir _DBUS_GNUC_UNUSED)
+ 
+       if (ring1->keys[i].creation_time != ring2->keys[i].creation_time)
+         {
+-          fprintf (stderr, "Keyring 1 has first key time %ld and keyring 2 has %ld\n",
++          fprintf (stderr, "Keyring 1 has first key time %" DBUS_INT64_MODIFIER "d and keyring 2 has %" DBUS_INT64_MODIFIER "d\n",
+                    ring1->keys[i].creation_time, ring2->keys[i].creation_time);
+           goto failure;
+         }
+diff --git a/dbus/dbus-mainloop.c b/dbus/dbus-mainloop.c
+index c4b7151b..5886fc0b 100644
+--- a/dbus/dbus-mainloop.c
++++ b/dbus/dbus-mainloop.c
+@@ -55,7 +55,7 @@ struct DBusLoop
+ typedef struct
+ {
+   DBusTimeout *timeout;
+-  long last_tv_sec;
++  dbus_int64_t last_tv_sec;
+   long last_tv_usec;
+ } TimeoutCallback;
+ 
+@@ -423,16 +423,16 @@ _dbus_loop_remove_timeout (DBusLoop           *loop,
+  * to do this.
+  */
+ static dbus_bool_t
+-check_timeout (long            tv_sec,
++check_timeout (dbus_int64_t            tv_sec,
+                long            tv_usec,
+                TimeoutCallback *tcb,
+                int             *timeout)
+ {
+-  long sec_remaining;
++  dbus_int64_t sec_remaining;
+   long msec_remaining;
+-  long expiration_tv_sec;
++  dbus_int64_t expiration_tv_sec;
+   long expiration_tv_usec;
+-  long interval_seconds;
++  dbus_int64_t interval_seconds;
+   long interval_milliseconds;
+   int interval;
+ 
+@@ -594,7 +594,7 @@ _dbus_loop_iterate (DBusLoop     *loop,
+   timeout = -1;
+   if (loop->timeout_count > 0)
+     {
+-      long tv_sec;
++      dbus_int64_t tv_sec;
+       long tv_usec;
+       
+       _dbus_get_monotonic_time (&tv_sec, &tv_usec);
+@@ -707,7 +707,7 @@ _dbus_loop_iterate (DBusLoop     *loop,
+ 
+   if (loop->timeout_count > 0)
+     {
+-      long tv_sec;
++      dbus_int64_t tv_sec;
+       long tv_usec;
+ 
+       _dbus_get_monotonic_time (&tv_sec, &tv_usec);
+diff --git a/dbus/dbus-string.h b/dbus/dbus-string.h
+index ff81102c..3ad727b7 100644
+--- a/dbus/dbus-string.h
++++ b/dbus/dbus-string.h
+@@ -286,6 +286,11 @@ dbus_bool_t   _dbus_string_parse_uint            (const DBusString  *str,
+                                                   unsigned long     *value_return,
+                                                   int               *end_return);
+ DBUS_PRIVATE_EXPORT
++dbus_bool_t   _dbus_string_parse_int64           (const DBusString  *str,
++                                                  int                start,
++                                                  dbus_int64_t      *value_return,
++                                                  int               *end_return);
++DBUS_PRIVATE_EXPORT
+ dbus_bool_t   _dbus_string_find                  (const DBusString  *str,
+                                                   int                start,
+                                                   const char        *substr,
+diff --git a/dbus/dbus-sysdeps-unix.c b/dbus/dbus-sysdeps-unix.c
+index 6b32df66..21bc6183 100644
+--- a/dbus/dbus-sysdeps-unix.c
++++ b/dbus/dbus-sysdeps-unix.c
+@@ -3217,7 +3217,7 @@ _dbus_poll (DBusPollFD *fds,
+  * @param tv_usec return location for number of microseconds
+  */
+ void
+-_dbus_get_monotonic_time (long *tv_sec,
++_dbus_get_monotonic_time (dbus_int64_t *tv_sec,
+                           long *tv_usec)
+ {
+ #ifdef HAVE_MONOTONIC_CLOCK
+@@ -3248,7 +3248,7 @@ _dbus_get_monotonic_time (long *tv_sec,
+  * @param tv_usec return location for number of microseconds
+  */
+ void
+-_dbus_get_real_time (long *tv_sec,
++_dbus_get_real_time (dbus_int64_t *tv_sec,
+                      long *tv_usec)
+ {
+   struct timeval t;
+diff --git a/dbus/dbus-sysdeps-win.c b/dbus/dbus-sysdeps-win.c
+index 0d8beb41..85d79b15 100644
+--- a/dbus/dbus-sysdeps-win.c
++++ b/dbus/dbus-sysdeps-win.c
+@@ -2374,7 +2374,7 @@ _dbus_sleep_milliseconds (int milliseconds)
+  * @param tv_usec return location for number of microseconds
+  */
+ void
+-_dbus_get_real_time (long *tv_sec,
++_dbus_get_real_time (dbus_int64_t *tv_sec,
+                      long *tv_usec)
+ {
+   FILETIME ft;
+@@ -2405,7 +2405,7 @@ _dbus_get_real_time (long *tv_sec,
+  * @param tv_usec return location for number of microseconds
+  */
+ void
+-_dbus_get_monotonic_time (long *tv_sec,
++_dbus_get_monotonic_time (dbus_int64_t *tv_sec,
+                           long *tv_usec)
+ {
+   /* no implementation yet, fall back to wall-clock time */
+diff --git a/dbus/dbus-sysdeps.c b/dbus/dbus-sysdeps.c
+index 4c9b286d..b8319110 100644
+--- a/dbus/dbus-sysdeps.c
++++ b/dbus/dbus-sysdeps.c
+@@ -506,6 +506,45 @@ _dbus_string_parse_uint (const DBusString *str,
+   return TRUE;
+ }
+ 
++/**
++ * Parses a dbus_int64_t integer contained in a DBusString. Either return parameter
++ * may be #NULL if you aren't interested in it. The integer is parsed
++ * and stored in value_return. Return parameters are not initialized
++ * if the function returns #FALSE.
++ *
++ * @param str the string
++ * @param start the byte index of the start of the integer
++ * @param value_return return location of the integer value or #NULL
++ * @param end_return return location of the end of the integer, or #NULL
++ * @returns #TRUE on success
++ */
++dbus_bool_t
++_dbus_string_parse_int64 (const DBusString *str,
++                          int               start,
++                          dbus_int64_t     *value_return,
++                          int              *end_return)
++{
++  dbus_int64_t v;
++  const char *p;
++  char *end;
++
++  p = _dbus_string_get_const_data_len (str, start,
++                                       _dbus_string_get_length (str) - start);
++
++  end = NULL;
++  _dbus_set_errno_to_zero ();
++  v = strtoll (p, &end, 0);
++  if (end == NULL || end == p || errno != 0)
++    return FALSE;
++
++  if (value_return)
++    *value_return = v;
++  if (end_return)
++    *end_return = start + (end - p);
++
++  return TRUE;
++}
++
+ /** @} */ /* DBusString group */
+ 
+ /**
+diff --git a/dbus/dbus-sysdeps.h b/dbus/dbus-sysdeps.h
+index e7e36ad6..6cc9d594 100644
+--- a/dbus/dbus-sysdeps.h
++++ b/dbus/dbus-sysdeps.h
+@@ -444,11 +444,11 @@ DBUS_PRIVATE_EXPORT
+ void _dbus_sleep_milliseconds (int milliseconds);
+ 
+ DBUS_PRIVATE_EXPORT
+-void _dbus_get_monotonic_time (long *tv_sec,
++void _dbus_get_monotonic_time (dbus_int64_t *tv_sec,
+                                long *tv_usec);
+ 
+ DBUS_PRIVATE_EXPORT
+-void _dbus_get_real_time (long *tv_sec,
++void _dbus_get_real_time (dbus_int64_t *tv_sec,
+                           long *tv_usec);
+ 
+ /**
+diff --git a/test/name-test/test-pending-call-dispatch.c b/test/name-test/test-pending-call-dispatch.c
+index e30d1f74..445d9f2a 100644
+--- a/test/name-test/test-pending-call-dispatch.c
++++ b/test/name-test/test-pending-call-dispatch.c
+@@ -105,8 +105,10 @@ _run_iteration (DBusConnection *conn)
+ int
+ main (int argc, char *argv[])
+ {
+-  long start_tv_sec, start_tv_usec;
+-  long end_tv_sec, end_tv_usec;
++  dbus_int64_t start_tv_sec;
++  long start_tv_usec;
++  dbus_int64_t end_tv_sec;
++  long end_tv_usec;
+   int i;
+   DBusMessage *method;
+   DBusConnection *conn;
+@@ -132,7 +134,7 @@ main (int argc, char *argv[])
+   /* run 100 times to make sure */
+   for (i = 0; i < 100; i++)
+     {
+-      long delta;
++      dbus_int64_t delta;
+       
+       _dbus_get_monotonic_time (&start_tv_sec, &start_tv_usec);
+       _run_iteration (conn);
+@@ -140,7 +142,7 @@ main (int argc, char *argv[])
+ 
+       /* we just care about seconds */
+       delta = end_tv_sec - start_tv_sec;
+-      printf ("ok %d - %lis\n", i + 1, delta);
++      printf ("ok %d - %" DBUS_INT64_MODIFIER "is\n", i + 1, delta);
+       if (delta >= 5)
+         {
+ 	  printf ("Bail out! Looks like we might have been be stuck in poll ***\n");
+diff --git a/test/name-test/test-pending-call-timeout.c b/test/name-test/test-pending-call-timeout.c
+index c47ba3f2..a91b37ae 100644
+--- a/test/name-test/test-pending-call-timeout.c
++++ b/test/name-test/test-pending-call-timeout.c
+@@ -71,8 +71,10 @@ _run_iteration (DBusConnection *conn)
+ int
+ main (int argc, char *argv[])
+ {
+-  long start_tv_sec, start_tv_usec;
+-  long end_tv_sec, end_tv_usec;
++  dbus_int64_t start_tv_sec;
++  long start_tv_usec;
++  dbus_int64_t end_tv_sec;
++  long end_tv_usec;
+   int i;
+   DBusMessage *method;
+   DBusConnection *conn;
+@@ -93,7 +95,7 @@ main (int argc, char *argv[])
+   /* run 100 times to make sure */
+   for (i = 0; i < 100; i++)
+     {
+-      long delta;
++      dbus_int64_t delta;
+       
+       _dbus_get_monotonic_time (&start_tv_sec, &start_tv_usec);
+       _run_iteration (conn);
+@@ -101,7 +103,7 @@ main (int argc, char *argv[])
+ 
+       /* we just care about seconds */
+       delta = end_tv_sec - start_tv_sec;
+-      printf ("ok %d - %lis\n", i + 1, delta);
++      printf ("ok %d - %" DBUS_INT64_MODIFIER "is\n", i + 1, delta);
+     }
+  
+   method = dbus_message_new_method_call ("org.freedesktop.TestSuiteEchoService",
+diff --git a/test/test-utils.c b/test/test-utils.c
+index 475ee752..17febc8b 100644
+--- a/test/test-utils.c
++++ b/test/test-utils.c
+@@ -801,7 +801,7 @@ _dbus_test_main (int                  argc,
+ 
+   for (i = 0; i < n_tests; i++)
+     {
+-      long before, after;
++      dbus_int64_t before, after;
+       DBusInitialFDs *initial_fds = NULL;
+ 
+       if (tests[i].name == NULL)
+@@ -832,7 +832,7 @@ _dbus_test_main (int                  argc,
+ 
+       _dbus_get_monotonic_time (&after, NULL);
+ 
+-      _dbus_test_diag ("%s test took %ld seconds",
++      _dbus_test_diag ("%s test took %" DBUS_INT64_MODIFIER "d seconds",
+                        tests[i].name, after - before);
+ 
+       if (test_post_hook)
+diff --git a/tools/dbus-monitor.c b/tools/dbus-monitor.c
+index bd111488..d1144b00 100644
+--- a/tools/dbus-monitor.c
++++ b/tools/dbus-monitor.c
+@@ -54,7 +54,8 @@ monitor_filter_func (DBusConnection     *connection,
+                      DBusMessage        *message,
+                      void               *user_data)
+ {
+-  long sec = 0, usec = 0;
++  dbus_int64_t sec = 0;
++  long usec = 0;
+ 
+   _dbus_get_real_time (&sec, &usec);
+ 
+@@ -94,9 +95,9 @@ profile_print_headers (void)
+ 
+ static void
+ profile_print_with_attrs (const char *type, DBusMessage *message,
+-  long sec, long usec, ProfileAttributeFlags attrs)
++  dbus_int64_t sec, long usec, ProfileAttributeFlags attrs)
+ {
+-  printf ("%s\t%ld.%06ld", type, sec, usec);
++  printf ("%s\t%" DBUS_INT64_MODIFIER "d.%06ld", type, sec, usec);
+ 
+   if (attrs & PROFILE_ATTRIBUTE_FLAG_SERIAL)
+     printf ("\t%u", dbus_message_get_serial (message));
+@@ -129,7 +130,8 @@ static void
+ print_message_profile (DBusMessage *message)
+ {
+   static dbus_bool_t first = TRUE;
+-  long sec = 0, usec = 0;
++  dbus_int64_t sec = 0;
++  long usec = 0;
+ 
+   if (first)
+     {
+@@ -174,7 +176,7 @@ print_message_profile (DBusMessage *message)
+           PROFILE_ATTRIBUTE_FLAG_MEMBER);
+         break;
+       default:
+-        printf ("%s\t%ld.%06ld", "tun", sec, usec);
++        printf ("%s\t%" DBUS_INT64_MODIFIER "d.%06ld", "tun", sec, usec);
+         break;
+     }
+ }
+@@ -219,7 +221,8 @@ binary_filter_func (DBusConnection *connection,
+     {
+       case BINARY_MODE_PCAP:
+           {
+-            long tv_sec, tv_usec;
++            dbus_int64_t tv_sec;
++            long tv_usec;
+             /* seconds, microseconds, bytes captured (possibly truncated),
+              * original length.
+              * http://wiki.wireshark.org/Development/LibpcapFileFormat
+diff --git a/tools/dbus-print-message.c b/tools/dbus-print-message.c
+index 22ee6824..04ab707c 100644
+--- a/tools/dbus-print-message.c
++++ b/tools/dbus-print-message.c
+@@ -529,7 +529,7 @@ print_iter (DBusMessageIter *iter, dbus_bool_t literal, int depth)
+ }
+ 
+ void
+-print_message (DBusMessage *message, dbus_bool_t literal, long sec, long usec)
++print_message (DBusMessage *message, dbus_bool_t literal, dbus_int64_t sec, long usec)
+ {
+   DBusMessageIter iter;
+   const char *sender;
+@@ -544,7 +544,7 @@ print_message (DBusMessage *message, dbus_bool_t literal, long sec, long usec)
+     {
+       if (sec != 0 || usec != 0)
+         {
+-          printf ("%s time=%ld.%06ld sender=%s -> destination=%s",
++          printf ("%s time=%" DBUS_INT64_MODIFIER "d.%06ld sender=%s -> destination=%s",
+                   type_to_name (message_type), sec, usec,
+                   sender ? sender : "(null sender)",
+                   destination ? destination : "(null destination)");
+diff --git a/tools/dbus-print-message.h b/tools/dbus-print-message.h
+index d45bc79d..5b332fce 100644
+--- a/tools/dbus-print-message.h
++++ b/tools/dbus-print-message.h
+@@ -26,6 +26,6 @@
+ #include <string.h>
+ #include <dbus/dbus.h>
+ 
+-void print_message (DBusMessage *message, dbus_bool_t literal, long sec, long usec);
++void print_message (DBusMessage *message, dbus_bool_t literal, dbus_int64_t sec, long usec);
+ 
+ #endif /* DBUS_PRINT_MESSAGE_H */
+diff --git a/tools/dbus-run-session.c b/tools/dbus-run-session.c
+index a622fb3d..6a1203cd 100644
+--- a/tools/dbus-run-session.c
++++ b/tools/dbus-run-session.c
+@@ -393,7 +393,8 @@ run_session (const char *dbus_daemon,
+   DBusString address;
+   char **env = NULL;
+   DBusHashTable *env_table = NULL;
+-  long sec,usec;
++  dbus_int64_t sec;
++  long usec;
+   dbus_bool_t result = TRUE;
+   char *key = NULL;
+   char *value = NULL;
+@@ -427,7 +428,7 @@ run_session (const char *dbus_daemon,
+    * mechanism, with a unique scope that is shared by this dbus-daemon,
+    * the app process that defines its lifetime, and any other child
+    * processes they might have. */
+-  _dbus_string_append_printf (&address, "autolaunch:scope=dbus-tmp-session-%ld%ld-" DBUS_PID_FORMAT, sec, usec, _dbus_getpid ());
++  _dbus_string_append_printf (&address, "autolaunch:scope=dbus-tmp-session-%" DBUS_INT64_MODIFIER "d%ld-" DBUS_PID_FORMAT, sec, usec, _dbus_getpid ());
+   _dbus_string_append_printf (&argv_strings[0], "%s", dbus_daemon);
+   if (config_file != NULL)
+     _dbus_string_append_printf (&argv_strings[1], "--config-file=%s", config_file);
+diff --git a/tools/dbus-send.c b/tools/dbus-send.c
+index 65f9854e..11db0d67 100644
+--- a/tools/dbus-send.c
++++ b/tools/dbus-send.c
+@@ -685,7 +685,8 @@ main (int argc, char *argv[])
+ 
+       if (reply)
+         {
+-          long sec, usec;
++          dbus_int64_t sec;
++          long usec;
+ 
+           _dbus_get_real_time (&sec, &usec);
+           print_message (reply, print_reply_literal, sec, usec);
