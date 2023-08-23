@@ -264,7 +264,8 @@ TEST_RUNQEMUPARAMS:append = " slirp"
     def test_testimage_virgl_headless(self):
         """
         Summary: Check host-assisted accelerate OpenGL functionality in qemu with egl-headless frontend
-        Expected: 1. Check that virgl kernel driver is loaded and 3d acceleration is enabled
+        Expected: 1. Check that virgl kernel driver is loaded (modprobe vgem, user part of "render" group and
+                     can open /dev/dri/renderD* device) and 3d acceleration is enabled
                   2. Check that kmscube demo runs without crashing.
         Product: oe-core
         Author: Alexander Kanavin <alex.kanavin@gmail.com>
@@ -275,6 +276,14 @@ TEST_RUNQEMUPARAMS:append = " slirp"
         if distro and (distro in ['debian-9', 'debian-10', 'centos-7', 'centos-8', 'ubuntu-16.04', 'ubuntu-18.04'] or
             distro.startswith('almalinux') or distro.startswith('rocky')):
             self.skipTest('virgl headless cannot be tested with %s' %(distro))
+
+        # test requires vgem driver and possibly "render" group rights to access device file
+        render_dev = "/dev/dri/renderD128"
+        try:
+            with open(render_dev, "w") as f:
+                f.close()
+        except IOError:
+            self.skipTest('Can not open "%s" device' % (render_dev))
 
         qemu_distrofeatures = get_bb_var('DISTRO_FEATURES', 'qemu-system-native')
         features = 'IMAGE_CLASSES += "testimage"\n'
