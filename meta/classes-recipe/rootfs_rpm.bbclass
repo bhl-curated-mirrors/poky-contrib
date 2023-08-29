@@ -10,17 +10,8 @@
 
 ROOTFS_PKGMANAGE = "rpm dnf"
 
-# TODO remove?
-# dnf is using our custom sysconfig module, and so will fail without these
-export STAGING_INCDIR
-export STAGING_LIBDIR
-
 # Add 100Meg of extra space for dnf
 IMAGE_ROOTFS_EXTRA_SPACE:append = "${@bb.utils.contains("PACKAGE_INSTALL", "dnf", " + 102400", "", d)}"
-
-# TODO remove?
-# Dnf is python based, so be sure python3-native is available to us.
-EXTRANATIVEPATH += "python3-native"
 
 RPMROOTFSDEPENDS = "rpm-native:do_populate_sysroot \
     dnf-native:do_populate_sysroot \
