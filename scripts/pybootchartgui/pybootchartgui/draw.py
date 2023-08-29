@@ -661,20 +661,20 @@ def render_processes_chart(ctx, options, trace, curr_y, width, h, sec_w):
 
             #print("proc at %s %s %s %s" % (x, y, w, proc_h))
             col = None
-            if task == "do_compile":
+            if "_setscene" in task:
+                col = WHITE
+            elif "do_compile" in task:
                 col = TASK_COLOR_COMPILE
-            elif task == "do_configure":
+            elif "do_configure" in task:
                 col = TASK_COLOR_CONFIGURE
-            elif task == "do_install":
+            elif "do_install" in task:
                 col = TASK_COLOR_INSTALL
-            elif task == "do_populate_sysroot":
+            elif "do_populate_sysroot" in task:
                 col = TASK_COLOR_SYSROOT
-            elif task == "do_package":
-                col = TASK_COLOR_PACKAGE
-            elif task == "do_package_write_rpm" or \
-                     task == "do_package_write_deb" or \
-                     task == "do_package_write_ipk":
+            elif "do_package_write" in task:
                 col = TASK_COLOR_PACKAGE_WRITE
+            elif "do_package" in task:
+                col = TASK_COLOR_PACKAGE
             else:
                 col = WHITE
 
