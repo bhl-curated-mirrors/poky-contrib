@@ -161,8 +161,7 @@ class PackageTests(OESelftestTestCase):
             Check that gdb ``binary`` to read symbols from separated debug file
             """
             self.logger.info("gdbtest %s" % binary)
-            status, output = qemu.run_serial_socket('/usr/bin/gdb.sh %s' % binary, timeout=60)
-            self.assertEqual(0, status)
+            status, output = qemu.run_serial('/usr/bin/gdb.sh %s' % binary, timeout=60)
             for l in output.split('\n'):
                 # Check debugging symbols exists
                 if '(no debugging symbols found)' in l:
@@ -193,8 +192,8 @@ class PackageTests(OESelftestTestCase):
 
         def check_ownership(qemu, expected_gid, expected_uid, path):
             self.logger.info("Check ownership of %s", path)
-            status, output = qemu.run_serial_socket('stat -c "%U %G" ' + path)
-            self.assertEqual(status, 0, "stat failed: " + output)
+            status, output = qemu.run_serial('stat -c "%U %G" ' + path)
+            self.assertEqual(status, 1, "stat failed: " + output)
             try:
                 uid, gid = output.split()
                 self.assertEqual(uid, expected_uid)

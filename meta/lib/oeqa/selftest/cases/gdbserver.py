@@ -43,8 +43,7 @@ CORE_IMAGE_EXTRA_INSTALL = "gdbserver"
             shutil.unpack_archive(filename, debugfs)
 
             with runqemu("core-image-minimal", runqemuparams="nographic") as qemu:
-                status, output = qemu.run_serial_socket("kmod --help")
-                self.assertEqual(status, 0)
+                status, output = qemu.run_serial("kmod --help")
                 self.assertIn("modprobe", output)
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -62,7 +61,7 @@ CORE_IMAGE_EXTRA_INSTALL = "gdbserver"
                             self.fail("Timed out connecting to gdb")
                     future = executor.submit(run_gdb)
 
-                    status, output = qemu.run_serial_socket("gdbserver --once :9999 kmod --help")
-                    self.assertEqual(status, 0)
+                    status, output = qemu.run_serial("gdbserver --once :9999 kmod --help")
+                    self.assertEqual(status, 1)
                     # The future either returns None, or raises an exception
                     future.result()

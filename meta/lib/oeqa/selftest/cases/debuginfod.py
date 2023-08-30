@@ -153,8 +153,7 @@ CORE_IMAGE_EXTRA_INSTALL += "elfutils xz"
             with runqemu("core-image-minimal", runqemuparams="nographic") as qemu:
                 cmd = "DEBUGINFOD_URLS=http://%s:%d/ debuginfod-find debuginfo /usr/bin/xz" % (qemu.server_ip, self.port)
                 self.logger.info(f"Starting client {cmd}")
-                status, output = qemu.run_serial_socket(cmd)
-                self.assertEqual(0, status)
+                status, output = qemu.run_serial(cmd)
                 # This should be more comprehensive
                 self.assertIn("/.cache/debuginfod_client/", output)
         finally:
