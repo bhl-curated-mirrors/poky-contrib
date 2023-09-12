@@ -30,3 +30,8 @@ EXTRA_OECMAKE:append:pn-libjpeg-turbo-native = " -DENABLE_STATIC=False"
 EXCONFIG_ARGS:append:pn-ncurses = " --without-normal"
 EXCONFIG_ARGS:append:pn-ncurses-native = " --without-normal"
 EXCONFIG_ARGS:append:pn-nativesdk-ncurses = " --without-normal"
+
+# Needed so we can statically link shadow-native tools
+DISABLE_STATIC:pn-attr-native = ""
+DISABLE_STATIC:pn-libbsd-native = ""
+DISABLE_STATIC:pn-libmd-native = ""
