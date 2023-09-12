@@ -31,7 +31,7 @@ else:
 class ParseLogsTest(OERuntimeTestCase):
 
     # Which log files should be collected
-    log_locations = ["/var/log/", "/var/log/dmesg", "/tmp/dmesg_output.log"]
+    log_locations = ["/var/log/", "/var/log/messages", "/tmp/dmesg_output.log", "/tmp/journal_output.log"]
 
     # The keywords that identify error messages in the log files
     errors = ["error", "cannot", "can't", "failed"]
@@ -159,14 +159,14 @@ class ParseLogsTest(OERuntimeTestCase):
 
         return results
 
-    # Get the output of dmesg and write it in a file.
+    # Get the output of journalctl or dmesg and write it in a file.
     # This file is added to log_locations.
-    def write_dmesg(self):
-        (status, dmesg) = self.target.run('dmesg > /tmp/dmesg_output.log')
+    def write_logs(self):
+        self.target.run('journalctl >/tmp/journal_output.log || dmesg >/tmp/dmesg_output.log')
 
     @OETestDepends(['ssh.SSHTest.test_ssh'])
     def test_parselogs(self):
-        self.write_dmesg()
+        self.write_logs()
         log_list = self.get_local_log_list(self.log_locations)
         result = self.parse_logs(log_list)
 
