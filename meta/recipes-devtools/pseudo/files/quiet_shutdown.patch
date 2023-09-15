@@ -1,0 +1,21 @@
+pseudo_client: Avoid messages about remaining clients if there is only one
+
+When sending shutdown requests we have to make a connection to the server. Ignore
+the case we're the only client left as the logs confuse people.
+
+Upstream-Status: Pending
+Signed-off-by: Richard Purdie <richard.purdie@linuxfoundation.org>
+
+Index: git/pseudo_client.c
+===================================================================
+--- git.orig/pseudo_client.c
++++ git/pseudo_client.c
+@@ -1489,7 +1489,7 @@ pseudo_client_shutdown(int wait_on_socke
+ 		pseudo_diag("server did not respond to shutdown query.\n");
+ 		return 1;
+ 	}
+-	if (ack->type != PSEUDO_MSG_ACK) {
++	if (ack->type != PSEUDO_MSG_ACK && ack->fd > 1) {
+ 		pseudo_diag("Server refused shutdown.  Remaining client fds: %d\n", ack->fd);
+ 		pseudo_diag("Client pids: %s\n", ack->path);
+ 		pseudo_diag("Server will shut down after all clients exit.\n");
