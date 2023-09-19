@@ -358,6 +358,7 @@ def sstate_install(ss, d):
 
 sstate_install[vardepsexclude] += "SSTATE_ALLOW_OVERLAP_FILES SSTATE_MANMACH SSTATE_MANFILEPREFIX"
 sstate_install[vardeps] += "${SSTATEPOSTINSTFUNCS}"
+sstate_install[vardepvalue] = "123"
 
 def sstate_installpkg(ss, d):
     from oe.gpg_sign import get_signer
