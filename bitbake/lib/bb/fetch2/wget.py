@@ -95,13 +95,11 @@ class Wget(FetchMethod):
         if not self.check_certs(d):
             self.basecmd += " --no-check-certificate"
 
-    def _runwget(self, ud, d, command, quiet, workdir=None):
-
-        progresshandler = WgetProgressHandler(d)
+    def _runwget(self, ud, d, command, progresshandler, workdir=None):
 
         logger.debug2("Fetching %s using command '%s'" % (ud.url, command))
         bb.fetch2.check_network_access(d, command, ud.url)
-        runfetchcmd(command + ' --progress=dot -v', d, quiet, log=progresshandler, workdir=workdir)
+        runfetchcmd(command + ' --progress=dot -v', d, log=progresshandler, workdir=workdir)
 
     def download(self, ud, d):
         """Fetch urls"""
@@ -133,7 +131,7 @@ class Wget(FetchMethod):
         else:
             fetchcmd += " -P " + dldir + " '" + uri + "'"
 
-        self._runwget(ud, d, fetchcmd, False)
+        self._runwget(ud, d, fetchcmd, progresshandler=WgetProgressHandler(d))
 
         # Sanity check since wget can pretend it succeed when it didn't
         # Also, this used to happen if sourceforge sent us to the mirror page
@@ -460,7 +458,7 @@ class Wget(FetchMethod):
             fetchcmd = self.basecmd
             fetchcmd += " -O " + f.name + " --user-agent='" + self.user_agent + "' '" + uri + "'"
             try:
-                self._runwget(ud, d, fetchcmd, True, workdir=workdir)
+                self._runwget(ud, d, fetchcmd, progresshandler=None, workdir=workdir)
                 fetchresult = f.read()
             except bb.fetch2.BBFetchException:
                 fetchresult = ""
