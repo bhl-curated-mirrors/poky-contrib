@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 
+import contextlib
 import subprocess
 import multiprocessing
+import os
 import traceback
 import errno
 
@@ -540,3 +542,18 @@ def touch(filename):
         # Handle read-only file systems gracefully
         if e.errno != errno.EROFS:
             raise e
+
+# This is taken from contextlib in Python 3.11, and can be removed when we can assume 3.11 onwards.
+class chdir(contextlib.AbstractContextManager):
+    """Non thread-safe context manager to change the current working directory."""
+
+    def __init__(self, path):
+        self.path = path
+        self._old_cwd = []
+
+    def __enter__(self):
+        self._old_cwd.append(os.getcwd())
+        os.chdir(self.path)
+
+    def __exit__(self, *excinfo):
+        os.chdir(self._old_cwd.pop())
