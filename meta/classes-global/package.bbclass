@@ -58,7 +58,8 @@ ALL_MULTILIB_PACKAGE_ARCHS = "${@all_multilib_tune_values(d, 'PACKAGE_ARCHS')}"
 
 # rpm is used for the per-file dependency identification
 # dwarfsrcfiles is used to determine the list of debug source files
-PACKAGE_DEPENDS += "rpm-native dwarfsrcfiles-native"
+# objdump is needed to read RPATHs/SONAME/NEEDED
+PACKAGE_DEPENDS += "rpm-native dwarfsrcfiles-native virtual/${HOST_PREFIX}binutils"
 
 # If your postinstall can execute at rootfs creation time rather than on
 # target but depends on a native/cross tool in order to execute, you need to
