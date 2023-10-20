@@ -7,8 +7,6 @@ LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = "file://COPYING;md5=e4dac5c6ab169aa212feb5028853a579"
 
 SECTION = "net"
-RDEPENDS:${PN} = "lighttpd-module-dirlisting"
-RRECOMMENDS:${PN} = "lighttpd-module-accesslog"
 
 SRC_URI = "http://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-${PV}.tar.xz \
            file://index.html.lighttpd \
@@ -62,15 +60,15 @@ do_install:append() {
 	ln -sf ${localstatedir}/tmp ${D}/www/var
 }
 
-# bitbake.conf sets ${libdir}/${BPN}/* in FILES, which messes up the module split.
-# So we re-do the variable.
-FILES:${PN} = "${sysconfdir} /www ${sbindir}"
+FILES:${PN} += "/www"
 
 CONFFILES:${PN} = "${sysconfdir}/lighttpd/lighttpd.conf"
 
 PACKAGES_DYNAMIC += "^lighttpd-module-.*"
 
+RRECOMMENDS:${PN} = "lighttpd-module-dirlisting lighttpd-module-accesslog"
+
 python populate_packages:prepend () {
     lighttpd_libdir = d.expand('${prefix}/lib/lighttpd')
-    do_split_packages(d, lighttpd_libdir, r'^mod_(.*)\.so$', 'lighttpd-module-%s', 'Lighttpd module for %s', extra_depends='')
+    do_split_packages(d, lighttpd_libdir, r'^mod_(.*)\.so$', 'lighttpd-module-%s', 'Lighttpd module for %s', prepend=True)
 }
