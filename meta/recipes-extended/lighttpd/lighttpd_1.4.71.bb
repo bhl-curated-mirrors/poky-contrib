@@ -60,13 +60,15 @@ do_install:append() {
 	ln -sf ${localstatedir}/tmp ${D}/www/var
 }
 
-FILES:${PN} += "/www"
-
-CONFFILES:${PN} = "${sysconfdir}/lighttpd/lighttpd.conf"
-
+PACKAGES =+ "${PN}-site-sample"
 PACKAGES_DYNAMIC += "^lighttpd-module-.*"
 
-RRECOMMENDS:${PN} = "lighttpd-module-dirlisting lighttpd-module-accesslog"
+FILES:${PN} += "/www"
+CONFFILES:${PN} = "${sysconfdir}/lighttpd/lighttpd.conf"
+
+FILES:${PN}-site-sample = "/www/pages/"
+
+RRECOMMENDS:${PN} = "lighttpd-module-dirlisting lighttpd-module-accesslog ${PN}-site-sample"
 
 python populate_packages:prepend () {
     lighttpd_libdir = d.expand('${prefix}/lib/lighttpd')
