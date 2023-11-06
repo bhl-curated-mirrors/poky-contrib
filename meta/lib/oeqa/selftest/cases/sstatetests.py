@@ -1007,3 +1007,16 @@ MACHINE = "{}"
     def test_local_cache_qemuarm64(self):
         exceptions = []
         self.run_test("qemuarm64", "core-image-minimal core-image-full-cmdline core-image-sato-sdk", exceptions, check_cdn = False)
+
+class SStateBundles(SStateCheckObjectPresence):
+    def test_minimal_bundle(self):
+        targets = "core-image-minimal"
+        machine = get_bb_var('MACHINE')
+        bitbake("--runall build {}".format(targets))
+        runCmd("oe-replicate-build --targets {}".format(targets))
+        extractedbundledir = tempfile.mkdtemp(prefix='bundle-extracted-', dir=self.topdir)
+        runCmd("../build-bundle.sh", cwd=extractedbundledir)
+        result = runCmd(". build-bundle/build/init-build-env && MACHINE={} bitbake -DD -n {}".format(machine,targets), cwd=extractedbundledir, shell=True, executable='/bin/bash')
+
+        exceptions = []
+        self.check_bb_output(result.output, targets, exceptions, check_cdn=False)

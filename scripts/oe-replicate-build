@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+#
+# Copyright OpenEmbedded Contributors
+#
+# SPDX-License-Identifier: MIT
+#
+
+import argparse
+import json
+import os
+import subprocess
+import shutil
+
+def _do_bundle(args):
+    bundledir = args.output_prefix or "build-bundle"
+    print("Making a self-extracting bundle archive in {}.sh ...".format(bundledir))
+    os.mkdir(bundledir)
+
+    builddir = os.path.join(bundledir, "build")
+    buildconfdir = os.path.join(builddir, "conf")
+    os.makedirs(buildconfdir)
+
+    subprocess.check_output("bitbake -S outdir={} -S lockedsigs {}".format(os.path.abspath(buildconfdir),args.targets), shell=True)
+    sstate_dir = subprocess.check_output("bitbake-getvar --value SSTATE_DIR", shell=True).decode().strip()
+    nativelsbstring = subprocess.check_output("bitbake-getvar --value NATIVELSBSTRING", shell=True).decode().strip()
+    if not args.no_sstate:
+        subprocess.check_output("gen-lockedsig-cache {} {} {} {}".format("conf/locked-sigs.inc", sstate_dir, "sstate-cache", nativelsbstring), shell=True, cwd=builddir)
+
+    with open(os.path.join(buildconfdir, "bblock.conf"), 'w') as f:
+        f.write('require conf/locked-sigs.inc\n')
+
+    layerdir = "meta-build-config"
+    subprocess.check_output("bitbake-layers create-layer --add-layer {}".format(layerdir), shell=True, cwd=bundledir)
+    subprocess.check_output("bitbake-layers save-build-conf {} default".format(layerdir), shell=True, cwd=bundledir)
+    shutil.copy(os.path.join(os.environ["BUILDDIR"],'conf',"conf-summary.txt"), os.path.join(bundledir,layerdir,'conf/templates/default'))
+    shutil.copy(os.path.join(os.environ["BUILDDIR"],'conf',"conf-notes.txt"), os.path.join(bundledir,layerdir,'conf/templates/default'))
+    subprocess.check_output("bitbake-layers remove-layer {}".format(layerdir), shell=True, cwd=bundledir)
+
+    # meta-build-config is then in bblayers.conf.sample, and should be removed from it as it wasn't in the actual build
+    bblayers = os.path.join(bundledir, layerdir, 'conf/templates/default/bblayers.conf.sample')
+    with open(bblayers) as f:
+        lines = f.readlines()
+        lines = [l for l in lines if os.path.join(bundledir, layerdir) not in l]
+    with open(bblayers,'w') as f:
+        f.write(''.join(lines))
+
+    subprocess.check_output("bitbake-layers create-layers-setup --writer oe-local-copy {}".format(bundledir), shell=True)
+
+    # meta-build-config should however be present in .oe-layers.json, as otherwise oe-setup-build won't be able to discover
+    # the config template in it
+    oelayers = os.path.join(bundledir, 'layers', '.oe-layers.json')
+    with open(oelayers) as f:
+        json_f = json.load(f)
+    json_f["layers"].append("../meta-build-config")
+    with open(oelayers,'w') as f:
+        json.dump(json_f, f, sort_keys=True, indent=4)
+
+    subprocess.check_output("tar caf {}.tar.zst {}".format(bundledir, bundledir), shell=True)
+
+    corebase = subprocess.check_output("bitbake-getvar --value COREBASE", shell=True).decode().strip()
+    subprocess.check_output("cp {}/meta/files/bundle-shar-extract.sh {}.sh".format(corebase, bundledir), shell=True)
+    subprocess.check_output("cat {}.tar.zst >> {}.sh".format(bundledir, bundledir), shell=True)
+    subprocess.check_output("chmod +x {}.sh".format(bundledir), shell=True)
+
+    if not args.keep_tmp:
+        shutil.rmtree(bundledir)
+        os.remove("{}.tar.zst".format(bundledir))
+
+parser = argparse.ArgumentParser(description="A script that bundles up everything needed to replicate a yocto build elsewhere (including appropriate portions of sstate cache) into a self-contained shell archive.")
+
+parser.add_argument('--targets', required=True, help="Bitbake targets that the bundle should be made for.")
+parser.add_argument('--output-prefix', help='File name prefix for the output files, if the default (build-bundle) is undesirable.')
+parser.add_argument('--no-sstate', action='store_true', help='Do not include sstate cache into the bundle.')
+parser.add_argument('--keep-tmp', action='store_true', help='Keep intermediate output: unpacked bundle directory, and compressed tarball (in addition to the final self-extracting shell archuve.')
+
+args = parser.parse_args()
+
+_do_bundle(args)
+
