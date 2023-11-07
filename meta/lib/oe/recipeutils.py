@@ -1096,10 +1096,13 @@ def _get_recipe_upgrade_status(data):
     cur_ver = uv['current_version']
 
     upstream_version_unknown = data.getVar('UPSTREAM_VERSION_UNKNOWN')
+    bb.warn("UPSTREAM_VERSION_UNKNOWN: %s" % upstream_version_unknown)
+    bb.warn("2: %s" % uv['version'])
     if not uv['version']:
         status = "UNKNOWN" if upstream_version_unknown else "UNKNOWN_BROKEN"
     else:
         cmp = vercmp_string(uv['current_version'], uv['version'])
+        bb.warn("4: %s" % str(cmp))        
         if cmp == -1:
             status = "UPDATE" if not upstream_version_unknown else "KNOWN_BROKEN"
         elif cmp == 0:
@@ -1107,12 +1110,15 @@ def _get_recipe_upgrade_status(data):
         else:
             status = "UNKNOWN" if upstream_version_unknown else "UNKNOWN_BROKEN"
 
+    bb.warn("3: %s" % str(status))
+
     next_ver = uv['version'] if uv['version'] else "N/A"
     revision = uv['revision'] if uv['revision'] else "N/A"
     maintainer = data.getVar('RECIPE_MAINTAINER')
     no_upgrade_reason = data.getVar('RECIPE_NO_UPDATE_REASON')
+    layer = data.getVar('FILE_LAYERNAME')
 
-    return (pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason)
+    return (pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason, layer)
 
 def get_recipe_upgrade_status(recipes=None):
     pkgs_list = []
@@ -1123,6 +1129,7 @@ def get_recipe_upgrade_status(recipes=None):
                  'PN',
                  'CACHE',
                  'PERSISTENT_DIR',
+                 'FILE_LAYERNAME',
                  'BB_URI_HEADREVS',
                  'UPSTREAM_CHECK_COMMITS',
                  'UPSTREAM_CHECK_GITTAGREGEX',
