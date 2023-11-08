@@ -56,6 +56,18 @@ do_install () {
     mkdir "${ENV_SETUP_DIR}"
     RUST_ENV_SETUP_SH="${ENV_SETUP_DIR}/rust.sh"
 
+    # Set up environment variables for AArch64
+    if [ "${TARGET_ARCH}" = "aarch64" ]; then
+	RUST_ENV_SETUP_SH="${ENV_SETUP_DIR}/rust-aarch64.sh"
+	RUST_TARGET_SYS="aarch64-unknown-linux-gnu"
+    # Set up environment variables for ARM
+    elif [ "${TARGET_ARCH}" = "arm" ]; then
+	RUST_ENV_SETUP_SH="${ENV_SETUP_DIR}/rust-arm.sh"
+	RUST_TARGET_SYS="arm-unknown-linux-gnueabi"
+    else
+	echo "Unsupported TARGET_ARCH: ${TARGET_ARCH}"
+    fi
+
     RUST_TARGET_TRIPLE=`echo ${RUST_TARGET_SYS} | tr '[:lower:]' '[:upper:]' | sed 's/-/_/g'`
     RUST_HOST_TRIPLE=`echo ${RUST_HOST_SYS} | tr '[:lower:]' '[:upper:]' | sed 's/-/_/g'`
     SDKLOADER=${@bb.utils.contains('SDK_ARCH', 'x86_64', 'ld-linux-x86-64.so.2', '', d)}${@bb.utils.contains('SDK_ARCH', 'i686', 'ld-linux.so.2', '', d)}${@bb.utils.contains('SDK_ARCH', 'aarch64', 'ld-linux-aarch64.so.1', '', d)}${@bb.utils.contains('SDK_ARCH', 'ppc64le', 'ld64.so.2', '', d)}${@bb.utils.contains('SDK_ARCH', 'riscv64', 'ld-linux-riscv64-lp64d.so.1', '', d)}
@@ -67,8 +79,19 @@ do_install () {
 	EOF
 
     chown -R root.root ${D}
-
     CARGO_ENV_SETUP_SH="${ENV_SETUP_DIR}/cargo.sh"
+
+    # Set up environment variables for AArch64
+    if [ "${TARGET_ARCH}" = "aarch64" ]; then
+	CARGO_ENV_SETUP_SH="${ENV_SETUP_DIR}/cargo-aarch64.sh"
+	CARGO_TARGET_SYS="aarch64-unknown-linux-gnu"
+    elif [ "${TARGET_ARCH}" = "arm" ]; then
+	CARGO_ENV_SETUP_SH="${ENV_SETUP_DIR}/cargo-arm.sh"
+	CARGO_TARGET_SYS="arm-unknown-linux-gnueabi"
+    else
+	echo "Unsupported TARGET_ARCH: ${TARGET_ARCH}"
+    fi
+
     cat <<- EOF > "${CARGO_ENV_SETUP_SH}"
 	export CARGO_HOME="\$OECORE_TARGET_SYSROOT/home/cargo"
 	mkdir -p "\$CARGO_HOME"
