@@ -17,7 +17,5 @@ XSERVER ?= "${XSERVER_X86_BASE} \
 MACHINE_EXTRA_RRECOMMENDS += "kernel-modules linux-firmware"
 
 IMAGE_FSTYPES += "wic wic.bmap"
-WKS_FILE ?= "genericx86.wks.in"
+WKS_FILE ?= "mkefidisk.wks.in"
 EFI_PROVIDER ??= "grub-efi"
-do_image_wic[depends] += "gptfdisk-native:do_populate_sysroot"
-do_image_wic[recrdeptask] += "do_bootimg"
