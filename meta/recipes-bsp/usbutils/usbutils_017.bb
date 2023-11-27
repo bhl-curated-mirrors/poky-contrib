@@ -31,3 +31,7 @@ RRECOMMENDS:${PN} = "udev-hwdb"
 PACKAGE_BEFORE_PN =+ "${PN}-python"
 FILES:${PN}-python += "${bindir}/lsusb.py"
 RDEPENDS:${PN}-python = "python3-core"
+
+do_install:append() {
+    sed -i -e "s,${WORKDIR},,g" ${D}/${libdir}/pkgconfig/*.pc
+}
