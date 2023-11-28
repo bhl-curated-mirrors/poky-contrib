@@ -19,3 +19,5 @@ MACHINE_EXTRA_RRECOMMENDS += "kernel-modules linux-firmware"
 IMAGE_FSTYPES += "wic wic.bmap"
 WKS_FILE ?= "mkefidisk.wks.in"
 EFI_PROVIDER ??= "grub-efi"
+
+INITRAMFS_IMAGE ?= "core-image-initramfs-boot"
