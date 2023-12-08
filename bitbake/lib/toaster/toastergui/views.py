@@ -2050,7 +2050,6 @@ class CommandLineBuilds(TemplateView):
                                     continue
                             if not variables:
                                 raise Exception("File content missing  build variables")
-                            eventfile.seek(0)
                             params = namedtuple('ConfigParams', ['observe_only'])(True)
                             player = eventreplay.EventPlayer(eventfile, variables)
 
@@ -2082,7 +2081,6 @@ class CommandLineBuilds(TemplateView):
                                 continue
                         if not variables:
                             raise Exception("File content missing  build variables")
-                        file.seek(0)
                         params = namedtuple('ConfigParams', ['observe_only'])(True)
                         player = eventreplay.EventPlayer(file, variables)
                         if not os.path.exists('{}/{}'.format(logs_dir, file.name)):
