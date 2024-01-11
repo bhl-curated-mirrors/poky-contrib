@@ -143,9 +143,6 @@ set( CMAKE_INSTALL_RPATH ${OECMAKE_RPATH} )
 # Use RPATHs relative to build directory for reproducibility
 set( CMAKE_BUILD_RPATH_USE_ORIGIN ON )
 
-# Use our cmake modules
-list(APPEND CMAKE_MODULE_PATH "${STAGING_DATADIR}/cmake/Modules/")
-
 # add for non /usr/lib libdir, e.g. /usr/lib64
 set( CMAKE_LIBRARY_PATH ${libdir} ${base_libdir})
 
