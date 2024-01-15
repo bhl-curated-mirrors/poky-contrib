@@ -1,0 +1,13 @@
+#! /bin/sh
+
+# Print a variable's value from the specified Makefile
+#
+# Usage:
+# $ makefile-getvar path/to/makefile VARIABLE_NAME
+
+make --file - $2.getvar <<EOF
+include $1
+
+%.getvar:
+	@echo \$(\$*)
+EOF
