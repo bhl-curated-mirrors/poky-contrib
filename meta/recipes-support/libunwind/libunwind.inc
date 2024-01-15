@@ -10,11 +10,10 @@ inherit autotools multilib_header
 
 PACKAGECONFIG ??= ""
 PACKAGECONFIG[lzma] = "--enable-minidebuginfo,--disable-minidebuginfo,xz"
+PACKAGECONFIG[zlib] = "--enable-zlibdebuginfo,--disable-zlibdebuginfo,zlib"
 PACKAGECONFIG[latexdocs] = "--enable-documentation, --disable-documentation, latex2man-native"
 
-EXTRA_OECONF:arm = "--enable-debug-frame"
 EXTRA_OECONF:armeb = "--enable-debug-frame"
-EXTRA_OECONF:aarch64 = "--enable-debug-frame"
 
 do_install:append () {
 	oe_multilib_header libunwind.h

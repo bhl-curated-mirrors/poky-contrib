@@ -1,0 +1,19 @@
+Upstream-Status: Inappropriate
+Signed-off-by: Ross Burton <ross.burton@arm.com>
+
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 299bc42c..808e198e 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -148,6 +148,11 @@ if !CROSS_BUILD
+  TESTS += $(check_SCRIPTS)
+ endif
+ 
++# Install the tests
++testdir = $(pkglibexecdir)
++test_PROGRAMS = $(check_PROGRAMS) $(noinst_PROGRAMS)
++test_SCRIPTS = $(check_SCRIPTS)
++
+ if ARCH_IA64
+  check_PROGRAMS_cdep += Gtest-dyn1 Ltest-dyn1
+ endif
