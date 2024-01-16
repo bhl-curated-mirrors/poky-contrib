@@ -1,0 +1,30 @@
+#! /bin/sh
+
+FAILED=0
+ALL=0
+
+for TEST in $(cat tests); do
+    ./$TEST
+    ret=$?
+
+    case "$ret" in
+        0)
+            echo "PASS: $TEST"
+            ALL=$((ALL + 1))
+            ;;
+        77)
+            echo "SKIP: $TEST"
+            ;;
+        *)
+            echo "FAIL: $TEST"
+            FAILED=$((FAILED + 1))
+            ALL=$((ALL + 1))
+            ;;
+    esac
+done
+
+if [ "$FAILED" -eq 0 ] ; then
+    echo "All $ALL tests passed"
+else
+    echo "$FAILED of $ALL tests failed"
+fi
