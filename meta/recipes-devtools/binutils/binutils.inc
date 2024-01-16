@@ -115,6 +115,7 @@ EXTRA_TARGETS:class-native = ""
 LDGOLD:class-native = ""
 LDGOLD:class-crosssdk = ""
 LDGOLD:libc-glibc:mipsarch = ""
+LDGOLD:libc-glibc:loongarch64 = ""
 LDGOLD ?= "${@bb.utils.contains('DISTRO_FEATURES', 'ld-is-gold', '--enable-gold=default --enable-threads', '--enable-gold --enable-ld=default --enable-threads', d)}"
 
 
