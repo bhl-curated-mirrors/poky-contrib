@@ -3,17 +3,17 @@ DESCRIPTION = "a portable and efficient C programming interface (API) to determi
 HOMEPAGE = "http://www.nongnu.org/libunwind"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://COPYING;md5=2d80c8ed4062b8339b715f90fa68cc9f"
-DEPENDS += "libatomic-ops"
 DEPENDS:append:libc-musl = " libucontext"
 
-SRC_URI = "http://download.savannah.nongnu.org/releases/libunwind/libunwind-${PV}.tar.gz \
+SRC_URI = "https://github.com/libunwind/libunwind/releases/download/v${PV}/libunwind-${PV}.tar.gz \
            file://mips-byte-order.patch \
            file://mips-coredump-register.patch \
-           file://0005-ppc32-Consider-ucontext-mismatches-between-glibc-and.patch \
-           file://0001-src-Gtrace-remove-unguarded-print-calls.patch \
+           file://0001-Handle-musl-on-PPC32.patch \
+           file://linux-musl.patch \
+           file://force-enable-man.patch \
            "
 
-SRC_URI[sha256sum] = "4a6aec666991fb45d0889c44aede8ad6eb108071c3554fcdff671f9c94794976"
+SRC_URI[sha256sum] = "b6b3df40a0970c8f2865fb39aa2af7b5d6f12ad6c5774e266ccca4d6b8b72268"
 
 inherit autotools multilib_header
 
@@ -22,7 +22,6 @@ COMPATIBLE_HOST:riscv32 = "null"
 PACKAGECONFIG ??= ""
 PACKAGECONFIG[lzma] = "--enable-minidebuginfo,--disable-minidebuginfo,xz"
 PACKAGECONFIG[zlib] = "--enable-zlibdebuginfo,--disable-zlibdebuginfo,zlib"
-PACKAGECONFIG[latexdocs] = "--enable-documentation, --disable-documentation, latex2man-native"
 
 EXTRA_OECONF = "--enable-static"
 
@@ -32,8 +31,10 @@ ARM_INSTRUCTION_SET:armv5 = "arm"
 
 LDFLAGS += "-Wl,-z,relro,-z,now ${@bb.utils.contains('DISTRO_FEATURES', 'ld-is-gold', ' -fuse-ld=bfd ', '', d)}"
 
+DEPENDS:append:libc-musl:powerpc = " libatomic-ops"
+LDFLAGS:append:libc-musl:powerpc = " -latomic"
+
 SECURITY_LDFLAGS:append:libc-musl = " -lssp_nonshared"
-CACHED_CONFIGUREVARS:append:libc-musl = " LDFLAGS='${LDFLAGS} -lucontext'"
 
 do_install:append () {
 	oe_multilib_header libunwind.h

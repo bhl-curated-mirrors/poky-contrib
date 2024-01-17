@@ -1,0 +1,20 @@
+Man pages are already built in the release tarball, so we don't
+need latex2man to build the manpages.
+
+Upstream-Status: Submitted [https://github.com/libunwind/libunwind/pull/712]
+Signed-off-by: Ross Burton <ross.burton@arm.com>
+--
+diff --git a/configure.ac b/configure.ac
+index 406f3773..7744251b 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -297,8 +297,7 @@ AC_ARG_ENABLE([documentation],
+ AC_MSG_RESULT([$enable_documentation])
+ AC_PATH_PROG([LATEX2MAN],[latex2man])
+ AS_IF([test "x$LATEX2MAN" = "x" && test "x$enable_documentation" != "xno"], [
+-  AC_MSG_WARN([latex2man not found. Install latex2man. Disabling docs.])
+-  enable_documentation="no";
++  AC_MSG_WARN([latex2man not found, unable to regenerate the manpages])
+ ])
+ AM_CONDITIONAL([CONFIG_DOCS], [test x$enable_documentation != xno])
+ AM_COND_IF([CONFIG_DOCS], [AC_CONFIG_FILES([doc/Makefile doc/common.tex])])
