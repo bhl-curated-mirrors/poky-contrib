@@ -71,15 +71,21 @@ def sortPriorities(pn, dataCache, pkg_pn = None):
     files = pkg_pn[pn]
     priorities = {}
     for f in files:
+        priority = dataCache.bbfile_priority[f]
         preference = dataCache.pkg_dp[f]
-        if preference not in priorities:
-            priorities[preference] = []
-        priorities[preference].append(f)
-    tmp_pref = []
-    for pref in sorted(priorities):
-        tmp_pref.extend(priorities[pref])
+        if priority not in priorities:
+            priorities[priority] = {}
+        if preference not in priorities[priority]:
+            priorities[priority][preference] = []
+        priorities[priority][preference].append(f)
+    tmp_pn = []
+    for pri in sorted(priorities):
+        tmp_pref = []
+        for pref in sorted(priorities[pri]):
+            tmp_pref.extend(priorities[pri][pref])
+        tmp_pn = [tmp_pref] + tmp_pn
 
-    return tmp_pref
+    return tmp_pn
 
 def versionVariableMatch(cfgData, keyword, pn):
     """
@@ -109,7 +115,7 @@ def preferredVersionMatch(pe, pv, pr, preferred_e, preferred_v, preferred_r):
                 return True
     return False
 
-def findPreferredProvider(pn, cfgData, dataCache, pkg_pn, item):
+def findPreferredProvider(pn, cfgData, dataCache, pkg_pn = None, item = None):
     """
     Find the first provider in pkg_pn with REQUIRED_VERSION or PREFERRED_VERSION set.
     """
@@ -150,12 +156,15 @@ def findPreferredProvider(pn, cfgData, dataCache, pkg_pn, item):
             preferred_e = None
             preferred_r = None
 
-        for f in pkg_pn:
-            pe, pv, pr = dataCache.pkg_pepvpr[f]
-            if preferredVersionMatch(pe, pv, pr, preferred_e, preferred_v, preferred_r):
-                preferred_file = f
-                preferred_ver = (pe, pv, pr)
-                break
+        for file_set in pkg_pn:
+            for f in file_set:
+                pe, pv, pr = dataCache.pkg_pepvpr[f]
+                if preferredVersionMatch(pe, pv, pr, preferred_e, preferred_v, preferred_r):
+                    preferred_file = f
+                    preferred_ver = (pe, pv, pr)
+                    break
+            if preferred_file:
+                break;
         if preferred_r:
             pv_str = '%s-%s' % (preferred_v, preferred_r)
         else:
@@ -166,13 +175,14 @@ def findPreferredProvider(pn, cfgData, dataCache, pkg_pn, item):
             if not required:
                 logger.warning("preferred version %s of %s not available%s", pv_str, pn, itemstr)
             available_vers = []
-            for f in pkg_pn:
-                pe, pv, pr = dataCache.pkg_pepvpr[f]
-                ver_str = pv
-                if pe:
-                    ver_str = "%s:%s" % (pe, ver_str)
-                if not ver_str in available_vers:
-                    available_vers.append(ver_str)
+            for file_set in pkg_pn:
+                for f in file_set:
+                    pe, pv, pr = dataCache.pkg_pepvpr[f]
+                    ver_str = pv
+                    if pe:
+                        ver_str = "%s:%s" % (pe, ver_str)
+                    if not ver_str in available_vers:
+                        available_vers.append(ver_str)
             if available_vers:
                 available_vers.sort()
                 logger.warning("versions of %s available: %s", pn, ' '.join(available_vers))
@@ -216,7 +226,7 @@ def findBestProvider(pn, cfgData, dataCache, pkg_pn = None, item = None):
     # Find the highest priority provider with a REQUIRED_VERSION or PREFERRED_VERSION set
     (preferred_ver, preferred_file, required) = findPreferredProvider(pn, cfgData, dataCache, sortpkg_pn, item)
     # Find the latest version of the highest priority provider
-    (latest, latest_f) = findLatestProvider(pn, cfgData, dataCache, sortpkg_pn)
+    (latest, latest_f) = findLatestProvider(pn, cfgData, dataCache, sortpkg_pn[0])
 
     if not required and preferred_file is None:
         preferred_file = latest_f
@@ -262,7 +272,7 @@ def _filterProviders(providers, item, cfgData, dataCache):
     for pn in sorted(sortpkg_pn):
         if pn in preferred_versions and preferred_versions[pn][1]:
             continue
-        preferred_versions[pn] = findLatestProvider(pn, cfgData, dataCache, sortpkg_pn[pn])
+        preferred_versions[pn] = findLatestProvider(pn, cfgData, dataCache, sortpkg_pn[pn][0])
         eligible.append(preferred_versions[pn][1])
 
     if not eligible:

@@ -1129,15 +1129,26 @@ class BBCooker:
         errors = False
         self.bbfile_config_priorities = []
         if collections:
+            collection_priorities = {}
             collection_depends = {}
             collection_list = collections.split()
             min_prio = 0
             for c in collection_list:
                 bb.debug(1,'Processing %s in collection list' % (c))
 
+                # Get collection priority if defined explicitly
                 priority = self.data.getVar("BBFILE_PRIORITY_%s" % c)
                 if priority:
-                    bb.warn("Ignoring obsolete BBFILE_PRIORITY_%s" % c)
+                    try:
+                        prio = int(priority)
+                    except ValueError:
+                        parselog.error("invalid value for BBFILE_PRIORITY_%s: \"%s\"", c, priority)
+                        errors = True
+                    if min_prio == 0 or prio < min_prio:
+                        min_prio = prio
+                    collection_priorities[c] = prio
+                else:
+                    collection_priorities[c] = None
 
                 # Check dependencies and store information for priority calculation
                 deps = self.data.getVar("LAYERDEPENDS_%s" % c)
@@ -1198,9 +1209,22 @@ class BBCooker:
                         else:
                             parselog.debug3("Layer '%s' recommends layer '%s', but this layer is not enabled in your configuration", c, rec)
 
+            # Recursively work out collection priorities based on dependencies
+            def calc_layer_priority(collection):
+                if not collection_priorities[collection]:
+                    max_depprio = min_prio
+                    for dep in collection_depends[collection]:
+                        calc_layer_priority(dep)
+                        depprio = collection_priorities[dep]
+                        if depprio > max_depprio:
+                            max_depprio = depprio
+                    max_depprio += 1
+                    parselog.debug("Calculated priority of layer %s as %d", collection, max_depprio)
+                    collection_priorities[collection] = max_depprio
 
-            # Store all layer priorities in bbfile_config_priorities
+            # Calculate all layer priorities using calc_layer_priority and store in bbfile_config_priorities
             for c in collection_list:
+                calc_layer_priority(c)
                 regex = self.data.getVar("BBFILE_PATTERN_%s" % c)
                 if regex is None:
                     parselog.error("BBFILE_PATTERN_%s not defined" % c)
@@ -1217,7 +1241,7 @@ class BBCooker:
                         parselog.error("BBFILE_PATTERN_%s \"%s\" is not a valid regular expression", c, regex)
                         errors = True
                         continue
-                self.bbfile_config_priorities.append((c, regex, cre, 0))
+                self.bbfile_config_priorities.append((c, regex, cre, collection_priorities[c]))
         if errors:
             # We've already printed the actual error(s)
             raise CollectionError("Errors during parsing layer configuration")
@@ -1339,6 +1363,7 @@ class BBCooker:
         # Tweak some variables
         item = info_array[0].pn
         self.recipecaches[mc].ignored_dependencies = set()
+        self.recipecaches[mc].bbfile_priority[fn] = 1
         self.configuration.limited_deps = True
 
         # Remove external dependencies
@@ -1618,7 +1643,7 @@ class BBCooker:
             self.show_appends_with_no_recipes()
             self.handlePrefProviders()
             for mc in self.multiconfigs:
-                self.collections[mc].collection_priorities(self.recipecaches[mc].pkg_fn, self.parser.mcfilelist[mc], self.data)
+                self.recipecaches[mc].bbfile_priority = self.collections[mc].collection_priorities(self.recipecaches[mc].pkg_fn, self.parser.mcfilelist[mc], self.data)
             self.state = state.running
 
             # Send an event listing all stamps reachable after parsing
@@ -1746,9 +1771,9 @@ class CookerCollectFiles(object):
         self.bbfile_config_priorities = sorted(priorities, key=lambda tup: tup[1], reverse=True)
 
     def calc_bbfile_priority(self, filename):
-        for layername, _, regex, _ in self.bbfile_config_priorities:
+        for layername, _, regex, pri in self.bbfile_config_priorities:
             if regex.match(filename):
-                return 0, regex, layername
+                return pri, regex, layername
         return 0, None, None
 
     def get_bbfiles(self):
@@ -1779,6 +1804,10 @@ class CookerCollectFiles(object):
         collectlog.debug("collecting .bb files")
 
         files = (config.getVar( "BBFILES") or "").split()
+
+        # Sort files by priority
+        files.sort( key=lambda fileitem: self.calc_bbfile_priority(fileitem)[0] )
+        config.setVar("BBFILES_PRIORITIZED", " ".join(files))
 
         if not files:
             files = self.get_bbfiles()
@@ -1901,10 +1930,12 @@ class CookerCollectFiles(object):
         return tuple(filelist)
 
     def collection_priorities(self, pkgfns, fns, d):
-        # Check that all the regexes in self.bbfile_config_priorities are used
+        # Return the priorities of the entries in pkgfns
+        # Also check that all the regexes in self.bbfile_config_priorities are used
         # (but to do that we need to ensure skipped recipes aren't counted, nor
         # collections in BBFILE_PATTERN_IGNORE_EMPTY)
 
+        priorities = {}
         seen = set()
         matched = set()
 
@@ -1916,7 +1947,7 @@ class CookerCollectFiles(object):
         # Calculate priorities for each file
         for p in pkgfns:
             realfn, cls, mc = bb.cache.virtualfn2realfn(p)
-            _, regex, _ = self.calc_bbfile_priority(realfn)
+            priorities[p], regex, _ = self.calc_bbfile_priority(realfn)
             if regex in unmatched_regex:
                 matched_regex.add(regex)
                 unmatched_regex.remove(regex)
@@ -1957,6 +1988,8 @@ class CookerCollectFiles(object):
                 if d.getVar('BBFILE_PATTERN_IGNORE_EMPTY_%s' % collection) != '1':
                     collectlog.warning("No bb files in %s matched BBFILE_PATTERN_%s '%s'" % (self.mc if self.mc else 'default',
                                                                                              collection, pattern))
+
+        return priorities
 
 class ParsingFailure(Exception):
     def __init__(self, realexception, recipe):
