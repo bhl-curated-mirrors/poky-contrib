@@ -5,6 +5,9 @@
 # The intent is to allow some images/configurations to build, not everything. There
 # will be a cost in reduced functionality.
 
+# Many ptests are problematic due to bash dependencies, need to disable
+DISTRO_FEATURES:remove = "ptest"
+
 # Settings for full-cmdline
 RDEPENDS:packagegroup-core-full-cmdline-utils:remove = "bash bc coreutils cpio ed findutils gawk grep mc mc-shell mc-helpers mc-helpers-perl sed tar time"
 RDEPENDS:packagegroup-core-full-cmdline-dev-utils:remove = "diffutils m4 make patch"
@@ -28,3 +31,6 @@ CORE_IMAGE_BASE_INSTALL:remove:pn-core-image-weston = "matchbox-terminal"
 # Some python-tests use bash outside of ptest
 RDEPENDS:${PN}-tests:remove:class-target:pn-python3 = "${MLPREFIX}bash"
 INSANE_SKIP:${PN}-tests:pn-python3 = "file-rdeps"
+
+# Assume opkg-utils is only for update-alternatives
+RDEPENDS:${PN}:remove:pn-opkg-utils = "bash"
