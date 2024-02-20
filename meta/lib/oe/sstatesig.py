@@ -152,8 +152,13 @@ class SignatureGeneratorOEBasicHashMixIn(object):
         super().set_taskdata(data[3:])
 
     def dump_sigs(self, dataCache, options):
+        outdir = os.getcwd()
+        for o in options:
+            if o.startswith('outdir'):
+                outdir = o.split('=')[1]
+
         if 'lockedsigs' in options:
-            sigfile = os.getcwd() + "/locked-sigs.inc"
+            sigfile = outdir + "/locked-sigs.inc"
             bb.plain("Writing locked sigs to %s" % sigfile)
             self.dump_lockedsigs(sigfile)
         return super(bb.siggen.SignatureGeneratorBasicHash, self).dump_sigs(dataCache, options)
