@@ -23,9 +23,10 @@ do_configure() {
 		--libdir=${libdir} \
 		--compiler="${CC}"
 }
+do_configure[cleandirs] = "${B}"
 
 do_install () {
 	oe_runmake install DESTDIR=${D}
 	install -d ${D}${datadir}/aclocal
-	install -m644 ${S}/m4/slibtool.m4 ${D}${datadir}/aclocal
+	install -m 644 ${S}/m4/slibtool.m4 ${D}${datadir}/aclocal
 }
