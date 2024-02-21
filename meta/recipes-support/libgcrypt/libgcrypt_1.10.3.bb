@@ -47,7 +47,9 @@ do_configure:prepend () {
 do_install_ptest() {
     cd tests
     oe_runmake testdrv-build testdrv
-    install testdrv $(srcdir=${S}/tests ./testdrv-build --files | sort | uniq) ${D}${PTEST_PATH}
+    for f in testdrv $(srcdir=${S}/tests ./testdrv-build --files | sort | uniq); do
+        slibtool --mode=install $f ${D}${PTEST_PATH}
+    done
 }
 
 FILES:${PN}-dev += "${bindir}/hmac256 ${bindir}/dumpsexp"
