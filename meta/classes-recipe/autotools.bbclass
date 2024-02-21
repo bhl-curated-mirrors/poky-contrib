@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 #
 
-LIBTOOL = "rlibtool"
+LIBTOOL = "slibtool"
 
 def get_autotools_dep(d):
     if d.getVar('INHIBIT_AUTOTOOLS_DEPS'):
