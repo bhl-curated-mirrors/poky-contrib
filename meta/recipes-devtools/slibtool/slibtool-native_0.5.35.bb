@@ -1,11 +1,10 @@
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://COPYING.SLIBTOOL;md5=818b2bf3780a97a2150e665f258a599d \
-                    file://COPYING.SOFORT;md5=dccc614a8e7daa9b436fdc7cd4e65e99"
+                    file://COPYING.SOFORT;md5=9f4c4d0d4fd1aeb9286e0bc06d32330c"
 
 SRC_URI = "git://dev.midipix.org/cross/slibtool.git;protocol=https;branch=main"
 
-SRCREV = "fc7ad9f9947b5097e1a246b009b487d3206fd588"
-PV .= "+git"
+SRCREV = "74d6e69d0e9672e08b12ba5def427924417d78b9"
 
 DEPENDS = "m4-native"
 
