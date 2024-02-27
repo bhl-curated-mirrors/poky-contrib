@@ -16,7 +16,8 @@ SRC_URI[sha256sum] = "d47564c433b733d83b6704c70477e0a4067811d184ec565258ac563d82
 
 inherit autotools gettext github-releases ptest
 
-EXTRA_OECONF += "--disable-docs"
+PACKAGECONFIG ??= "${@bb.utils.filter('DISTRO_FEATURES', 'api-documentation', d)}"
+PACKAGECONFIG[api-documentation] = "--enable-docs,--disable-docs,doxygen-native"
 
 do_compile_ptest() {
     oe_runmake -C test buildtest-TESTS
