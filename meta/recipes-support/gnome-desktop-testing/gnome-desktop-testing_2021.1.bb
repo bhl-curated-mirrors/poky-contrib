@@ -9,16 +9,16 @@ LICENSE = "LGPL-2.0-or-later"
 LIC_FILES_CHKSUM = "file://COPYING;md5=3bf50002aefd002f49e7bb854063f7e7 \
                     file://src/gnome-desktop-testing-runner.c;beginline=1;endline=20;md5=7ef3ad9da2ffcf7707dc11151fe007f4"
 
-SRC_URI = "git://gitlab.gnome.org/GNOME/gnome-desktop-testing.git;protocol=https;branch=master \
-           file://0001-fix-non-literal-format-string-issue-with-clang.patch \
-          "
-SRCREV = "e346cd4ed2e2102c9b195b614f3c642d23f5f6e7"
+SRC_URI = "git://gitlab.gnome.org/GNOME/gnome-desktop-testing.git;protocol=https;branch=master"
+SRCREV = "036b7357f1892b3bdf19aba8d0be7d7b75bda291"
+
+PV .= "+git"
 
 DEPENDS = "glib-2.0"
 
 S = "${WORKDIR}/git"
 
-inherit autotools pkgconfig
+inherit meson pkgconfig
 
 PACKAGECONFIG ??= "${@bb.utils.filter('DISTRO_FEATURES', 'systemd', d)}"
-PACKAGECONFIG[systemd] = ",,systemd"
+PACKAGECONFIG[systemd] = "-Dsystemd=enabled,-Dsystemd=disabled,systemd"
