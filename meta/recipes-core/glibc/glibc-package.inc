@@ -167,6 +167,8 @@ do_install_armmultilib () {
 	oe_multilib_header fpu_control.h gnu/lib-names.h gnu/stubs.h ieee754.h
 
 	oe_multilib_header sys/elf.h sys/procfs.h sys/ptrace.h sys/ucontext.h sys/user.h
+
+	oe_multilib_header finclude/math-vector-fortran.h
 }
 
 do_install_armmultilib:append:class-target() {
