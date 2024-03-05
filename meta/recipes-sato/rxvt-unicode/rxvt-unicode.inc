@@ -18,6 +18,7 @@ inherit autotools pkgconfig update-alternatives
 PROVIDES = "virtual/x-terminal-emulator"
 ALTERNATIVE:${PN} = "x-terminal-emulator"
 ALTERNATIVE_TARGET[x-terminal-emulator] = "${bindir}/rxvt"
+ALTERNATIVE_PRIORITY[x-terminal-emulator] = "10"
 
 CFLAGS:append = " -fpermissive"
 
