@@ -19,6 +19,7 @@ PROVIDES = "virtual/x-terminal-emulator"
 ALTERNATIVE:${PN} = "x-terminal-emulator"
 ALTERNATIVE_TARGET[x-terminal-emulator] = "${bindir}/rxvt"
 ALTERNATIVE_PRIORITY[x-terminal-emulator] = "10"
+RPROVIDES:${PN} = "virtual-x-terminal-emulator"
 
 CFLAGS:append = " -fpermissive"
 
