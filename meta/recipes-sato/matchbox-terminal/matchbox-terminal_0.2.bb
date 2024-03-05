@@ -19,3 +19,8 @@ S = "${WORKDIR}/git"
 inherit autotools pkgconfig features_check
 
 ANY_OF_DISTRO_FEATURES = "${GTK3DISTROFEATURES}"
+
+PROVIDES = "virtual/x-terminal-emulator"
+ALTERNATIVE:${PN} = "x-terminal-emulator"
+ALTERNATIVE_TARGET[x-terminal-emulator] = "${bindir}/matchbox-terminal"
+ALTERNATIVE_PRIORITY[x-terminal-emulator] = "20"
