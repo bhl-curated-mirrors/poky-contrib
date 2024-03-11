@@ -1,0 +1,70 @@
+From 41090ff333b2b4d888a15e3fba000229fc8740c3 Mon Sep 17 00:00:00 2001
+From: Alexander Kanavin <alex.kanavin@gmail.com>
+Date: Tue, 12 Mar 2024 12:13:27 +0100
+Subject: [PATCH] third_party/CMakeLists.txt: allow overriding ASTC_ARCH
+
+Auto-detection isn't entirely robust: it checks whether the compiler
+can produce the instructions, by trying various command line flags, and
+then forcibly enables them if so.
+
+This doesn't work when the build is intended for a machine that doesn't
+actually support those instructions; the checks should either try only the
+default compiler settings (e.g. no additional options), or have a switch
+to forcibly override ASTC_ARCH from cmake command line (which is what this
+patch does).
+
+This was exposed by trying to build for 32 bit x86 (yes, it's still a valid
+architecture in 2024) - the checks happily enable AVX2 because 32bit x86 compiler
+can do it if you ask, even though the overall build is configured for a mid 2000s
+x86 CPU model that can't possibly have that.
+
+Upstream-Status: Submitted [xxx]
+Signed-off-by: Alexander Kanavin <alex.kanavin@gmail.com>
+---
+ third_party/CMakeLists.txt | 23 +++++++++++++----------
+ 1 file changed, 13 insertions(+), 10 deletions(-)
+
+diff --git a/third_party/CMakeLists.txt b/third_party/CMakeLists.txt
+index 1d25dc4..ea8892d 100644
+--- a/third_party/CMakeLists.txt
++++ b/third_party/CMakeLists.txt
+@@ -291,6 +291,7 @@ add_library(stb INTERFACE)
+ target_include_directories(stb INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/stb")
+ 
+ 
++set(ASTC_ARCH "AUTO" CACHE STRING "Select ASTC architecture (AUTO to auto-detect, or one of NATIVE, AVX2, SSE41, SSE2, NEON)")
+ # On an x86_64 macbook, AVX2 is selected, but linking fails with this message,
+ # `ld: object file .../libastcdec-avx2-static.a was built for different x86_64 sub-type (8) than link command line (3)`
+ # so we fallback to native. If we're on an ARM based mac, there's no need for any SIMD extension, because they support
+@@ -302,16 +303,18 @@ else()
+     include( FindSSE41 )
+     include( FindSSE2 )
+     include( FindNEON )
+-    if (${AVX2_FOUND})
+-        set(ASTC_ARCH AVX2)
+-    elseif(${SSE41_FOUND})
+-        set(ASTC_ARCH SSE41)
+-    elseif(${SSE2_FOUND})
+-        set(ASTC_ARCH SSE2)
+-    elseif(${NEON_FOUND})
+-        set(ASTC_ARCH NEON)
+-    else()
+-        set(ASTC_ARCH NATIVE)
++    if (ASTC_ARCH STREQUAL AUTO)
++        if (${AVX2_FOUND})
++            set(ASTC_ARCH AVX2)
++        elseif(${SSE41_FOUND})
++            set(ASTC_ARCH SSE41)
++        elseif(${SSE2_FOUND})
++            set(ASTC_ARCH SSE2)
++        elseif(${NEON_FOUND})
++            set(ASTC_ARCH NEON)
++        else()
++            set(ASTC_ARCH NATIVE)
++        endif()
+     endif()
+ endif()
+ 
+-- 
+2.39.2
+
