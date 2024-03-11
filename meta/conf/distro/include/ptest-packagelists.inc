@@ -77,6 +77,7 @@ PTESTS_FAST = "\
     quilt \
     sed \
     slang \
+    ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'systemd', '', d)} \
     wayland \
     xz \
     zlib \
