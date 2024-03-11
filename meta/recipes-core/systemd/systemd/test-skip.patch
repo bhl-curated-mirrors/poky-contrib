@@ -1,0 +1,75 @@
+From ac1dfaf80fbcf2cb6d66cf690608a8979f0ca84c Mon Sep 17 00:00:00 2001
+From: Ross Burton <ross.burton@arm.com>
+Date: Mon, 11 Mar 2024 13:59:55 +0000
+Subject: [PATCH 1/2] test/run-unit-tests: sort the test cases we're executing
+
+When reading test logs manually it is a lot easier when the tests are
+sorted by name rather than by disk order.
+
+Upstream-Status: Backport [https://github.com/systemd/systemd/pull/31723]
+Signed-off-by: Ross Burton <ross.burton@arm.com>
+---
+ test/run-unit-tests.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/run-unit-tests.py b/test/run-unit-tests.py
+index e6f26c2821..1b0329644b 100755
+--- a/test/run-unit-tests.py
++++ b/test/run-unit-tests.py
+@@ -42,7 +42,7 @@ if not opts.artifact_directory and os.getenv('ARTIFACT_DIRECTORY'):
+     opts.artifact_directory = os.getenv('ARTIFACT_DIRECTORY')
+ 
+ total.total = len(tests)
+-for test in tests:
++for test in sorted(tests):
+     name = os.path.basename(test)
+ 
+     ex = subprocess.run(test, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+-- 
+2.34.1
+
+
+From 1f5499b77098427a8d5358b2d5c620394f7fbca4 Mon Sep 17 00:00:00 2001
+From: Ross Burton <ross.burton@arm.com>
+Date: Mon, 11 Mar 2024 16:41:02 +0000
+Subject: [PATCH 2/2] tests/run-unit-tests: add option to skip tests
+
+In automated QA environments there may be tests that are known to fail,
+and being able to skip them is useful to remove known failures from the
+test log.
+
+Upstream-Status: Backport [https://github.com/systemd/systemd/pull/31725]
+Signed-off-by: Ross Burton <ross.burton@arm.com>
+---
+ test/run-unit-tests.py | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/test/run-unit-tests.py b/test/run-unit-tests.py
+index 1b0329644b..d101066e49 100755
+--- a/test/run-unit-tests.py
++++ b/test/run-unit-tests.py
+@@ -28,6 +28,9 @@ def argument_parser():
+                    help='run "unsafe" tests too')
+     p.add_argument('-A', '--artifact_directory',
+                    help='store output from failed tests in this dir')
++    p.add_argument('-s', '--skip', action='append', default=[],
++                   help='skip the named test')
++
+     return p
+ 
+ opts = argument_parser().parse_args()
+@@ -45,6 +48,11 @@ total.total = len(tests)
+ for test in sorted(tests):
+     name = os.path.basename(test)
+ 
++    if name in opts.skip:
++        print(f'{YELLOW}SKIP: {name} (by user) {RESET_ALL}')
++        total.skip += 1
++        continue
++
+     ex = subprocess.run(test, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+     if ex.returncode == 0:
+         print(f'{GREEN}PASS: {name}{RESET_ALL}')
+-- 
+2.34.1
+

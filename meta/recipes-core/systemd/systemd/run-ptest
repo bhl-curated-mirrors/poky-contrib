@@ -1,0 +1,14 @@
+#! /bin/sh
+
+set -e
+
+cd /usr/lib/systemd/tests
+
+# Temporary skips until the underlying issues are resolved:
+#
+# test-log: -fmacro-prefix-map breaks it:
+# https://github.com/systemd/systemd/pull/12926 https://github.com/systemd/systemd/issues/27978
+# 
+# test-execute: fails to mount /var/tmp
+
+./run-unit-tests.py --skip test-log --skip test-execute

@@ -8,7 +8,7 @@ DEPENDS = "intltool-native gperf-native libcap util-linux python3-jinja2-native"
 
 SECTION = "base/shell"
 
-inherit useradd pkgconfig meson perlnative update-rc.d update-alternatives qemu systemd gettext bash-completion manpages features_check
+inherit useradd pkgconfig meson perlnative update-rc.d update-alternatives qemu systemd gettext bash-completion manpages features_check ptest
 
 # unmerged-usr support is deprecated upstream, taints the system and will be
 # removed in the near future. Fail the build if it is not enabled.
@@ -28,6 +28,8 @@ SRC_URI += " \
            file://systemd-pager.sh \
            file://0002-binfmt-Don-t-install-dependency-links-at-install-tim.patch \
            file://0008-implment-systemd-sysv-install-for-OE.patch \
+           file://test-skip.patch \
+           file://run-ptest \
            "
 
 # patches needed by musl
@@ -70,6 +72,7 @@ PACKAGECONFIG ??= " \
     ${@bb.utils.contains('DISTRO_FEATURES', 'wifi', 'rfkill', '', d)} \
     ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'xkbcommon', '', d)} \
     ${@bb.utils.contains('DISTRO_FEATURES', 'sysvinit', '', 'link-udev-shared', d)} \
+    ${@bb.utils.contains('PTEST_ENABLED', '1', 'tests', '', d)} \
     backlight \
     binfmt \
     cgroupv2 \
@@ -213,6 +216,7 @@ def build_epoch(d):
     epoch = d.getVar('SOURCE_DATE_EPOCH') or "-1"
     return '-Dtime-epoch=%d' % int(epoch)
 PACKAGECONFIG[set-time-epoch] = "${@build_epoch(d)},-Dtime-epoch=0"
+PACKAGECONFIG[tests] = "-Dinstall-tests=true,-Dinstall-tests=false"
 PACKAGECONFIG[timedated] = "-Dtimedated=true,-Dtimedated=false"
 PACKAGECONFIG[timesyncd] = "-Dtimesyncd=true,-Dtimesyncd=false"
 PACKAGECONFIG[usrmerge] = "-Dsplit-usr=false,-Dsplit-usr=true"
@@ -793,6 +797,23 @@ FILES:udev += "${base_sbindir}/udevd \
 FILES:udev-bash-completion = "${datadir}/bash-completion/completions/udevadm"
 FILES:udev-hwdb = "${rootlibexecdir}/udev/hwdb.d \
                    "
+FILES:${PN}-ptest += "${exec_prefix}/lib/systemd/tests"
+RDEPENDS:${PN}-ptest += "acl \
+                         bash \
+                         coreutils \
+                         python3 \
+                         python3-pytest \
+                         tzdata \
+                         util-linux-ionice \
+                         util-linux-sfdisk \
+                         util-linux-unshare \
+                         systemd-analyze \
+                         ${@bb.utils.contains('PACKAGECONFIG', 'nss-mymachines', 'libnss-mymachines', '', d)} \
+                         ${@bb.utils.contains('PACKAGECONFIG', 'myhostname', 'libnss-myhostname', '', d)} \
+                         ${@bb.utils.contains('PACKAGECONFIG', 'nss-resolve', 'libnss-resolve', '', d)} \
+                         "
+RDEPENDS:${PN}-ptest:append:libc-glibc = " locale-base-c locale-base-en-us"
+RRECOMMENDS:${PN}-ptest += "kernel-module-loop"
 
 RCONFLICTS:${PN} = "tiny-init ${@bb.utils.contains('PACKAGECONFIG', 'resolved', 'resolvconf', '', d)}"
 
