@@ -8,8 +8,6 @@ BUGTRACKER = "https://salsa.debian.org/reproducible-builds/diffoscope/-/issues"
 LICENSE = "GPL-3.0-or-later"
 LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504"
 
-PYPI_PACKAGE = "diffoscope"
-
 inherit pypi setuptools3
 
 SRC_URI[sha256sum] = "c1f14452467f84c4be804a3725cbfdd5eadf977ece7ad463be8b647d1a87fb42"
