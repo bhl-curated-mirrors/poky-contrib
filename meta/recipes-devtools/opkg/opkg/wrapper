@@ -1,0 +1,8 @@
+#!/bin/bash
+realpath=`readlink -fn $0`
+realdir=`dirname $realpath`
+echo "New call $$" >> /tmp/opkglog
+date >> /tmp/opkglog
+ps >> /tmp/opkglog
+echo "$@" >> /tmp/opkglog
+exec -a $realdir/opkg $realdir/opkg.real "$@"

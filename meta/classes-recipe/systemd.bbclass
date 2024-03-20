@@ -49,6 +49,7 @@ if systemctl >/dev/null 2>/dev/null; then
 		if [ "${SYSTEMD_AUTO_ENABLE}" = "enable" ]; then
 			systemctl --no-block restart ${SYSTEMD_SERVICE_ESCAPED}
 		fi
+		sleep 5
 	fi
 fi
 }
