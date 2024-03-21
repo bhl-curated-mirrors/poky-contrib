@@ -1,0 +1,59 @@
+From 095ccb58648d5b9fcb5f4d32ce36c5497f3df8b1 Mon Sep 17 00:00:00 2001
+From: Ross Burton <ross.burton@arm.com>
+Date: Thu, 21 Mar 2024 12:24:41 +0000
+Subject: [PATCH] add skipIfLoadedSystem WIP
+
+Upstream-Status: Pending
+Signed-off-by: Ross Burton <ross.burton@arm.com>
+---
+ library/tcltest/tcltest.tcl | 4 ++++
+ tests/cmdMZ.test            | 4 +++-
+ tests/tcltest.test          | 2 +-
+ 3 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/library/tcltest/tcltest.tcl b/library/tcltest/tcltest.tcl
+index 7344f9f168..2648d07aeb 100644
+--- a/library/tcltest/tcltest.tcl
++++ b/library/tcltest/tcltest.tcl
+@@ -1259,6 +1259,10 @@ proc tcltest::DefineConstraintInitializers {} {
+ 
+     ConstraintInitializer userInteraction {format 0}
+ 
++    # Some tests are timing sensitive and require idle systems. Assume the system is idle unless told otherwise.
++
++    ConstraintInitializer skipIfLoadedSystem {expr {![info exists ::env(TCLTEST_LOADED)]}}
++
+     # Some tests must be skipped if the interpreter is not in
+     # interactive mode
+ 
+diff --git a/tests/cmdMZ.test b/tests/cmdMZ.test
+index 61203c1b85..561339853c 100644
+--- a/tests/cmdMZ.test
++++ b/tests/cmdMZ.test
+@@ -405,7 +405,9 @@ test cmdMZ-6.5a {Tcl_TimeRateObjCmd: result format and one iteration} {
+ test cmdMZ-6.5b {Tcl_TimeRateObjCmd: result format without iterations} {
+     regexp {^0 \ws/# 0 # 0 #/sec 0 net-ms$} [timerate {} 0 0]
+ } 1
+-test cmdMZ-6.6 {Tcl_TimeRateObjCmd: slower commands take longer, but it remains almost the same time of measument} -body {
++test cmdMZ-6.6 {Tcl_TimeRateObjCmd: slower commands take longer, but it remains almost the same time of measument} -constraints {
++    skipIfLoadedSystem
++} -body {
+     set m1 [timerate {_nrt_sleep 0.01} 50]
+     set m2 [timerate {_nrt_sleep 1.00} 50]
+     list [list \
+diff --git a/tests/tcltest.test b/tests/tcltest.test
+index 8a0174df22..8d53d9d7d0 100644
+--- a/tests/tcltest.test
++++ b/tests/tcltest.test
+@@ -312,7 +312,7 @@ test tcltest-5.5 {InitConstraints: list of built-in constraints} \
+ 	-result [lsort {
+     95 98 asyncPipeClose eformat emptyTest exec hasIsoLocale interactive
+     knownBug mac macCrash macOnly macOrPc macOrUnix macOrWin nonBlockFiles
+-    nonPortable notRoot nt pc pcCrash pcOnly root singleTestInterp socket
++    nonPortable notRoot nt pc pcCrash pcOnly root singleTestInterp skipIfLoadedSystemXXX socket
+     stdio tempNotMac tempNotPc tempNotUnix tempNotWin unix unixCrash unixExecs
+     unixOnly unixOrPc unixOrWin userInteraction win winCrash winOnly
+ }]
+-- 
+2.34.1
+

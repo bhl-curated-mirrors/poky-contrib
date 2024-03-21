@@ -24,6 +24,7 @@ SRC_URI = "${BASE_SRC_URI} \
            file://alter-includedir.patch \
            file://interp.patch \
            file://run-ptest \
+			file://loaded.patch \
 "
 SRC_URI[sha256sum] = "c61f0d6699e2bc7691f119b41963aaa8dc980f23532c4e937739832a5f4a6642"
 
