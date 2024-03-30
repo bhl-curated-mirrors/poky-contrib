@@ -867,6 +867,10 @@ class ConnectionWriter(object):
         gc.disable()
         with bb.utils.lock_timeout(self.wlock):
             self.writer.send_bytes(obj)
+            try:
+                os.fsync(self.fileno())
+            except OSError:
+                pass
         gc.enable()
 
     def send(self, obj):
