@@ -1,0 +1,10 @@
+[Unit]
+Description=Shared jobserver fifo
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=python jobserver.py
+
+[Install]
+WantedBy=multi-user.target
