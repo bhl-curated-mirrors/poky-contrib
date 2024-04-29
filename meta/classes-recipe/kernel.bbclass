@@ -136,18 +136,24 @@ fi
 set -e
 """ % (type, type, type))
 
-
     image = d.getVar('INITRAMFS_IMAGE')
-    # If the INTIRAMFS_IMAGE is set but the INITRAMFS_IMAGE_BUNDLE is set to 0,
-    # the do_bundle_initramfs does nothing, but the INITRAMFS_IMAGE is built
-    # standalone for use by wic and other tools.
     if image:
-        if d.getVar('INITRAMFS_MULTICONFIG'):
-            d.appendVarFlag('do_bundle_initramfs', 'mcdepends', ' mc::${INITRAMFS_MULTICONFIG}:${INITRAMFS_IMAGE}:do_image_complete')
+        # If the INTIRAMFS_IMAGE is set but the INITRAMFS_IMAGE_BUNDLE is set to 0,
+        # the do_bundle_initramfs is not needed, but the INITRAMFS_IMAGE is built
+        # standalone for use by wic and other tools.
+        def add_initramfs_dep_task(initramfs_dep_task, d):
+            if d.getVar('INITRAMFS_MULTICONFIG'):
+                d.appendVarFlag(initramfs_dep_task, 'mcdepends', ' mc::${INITRAMFS_MULTICONFIG}:${INITRAMFS_IMAGE}:do_image_complete')
+            else:
+                d.appendVarFlag(initramfs_dep_task, 'depends', ' ${INITRAMFS_IMAGE}:do_image_complete')
+
+        if bb.utils.to_boolean(d.getVar('INITRAMFS_IMAGE_BUNDLE')):
+            bb.build.addtask('do_bundle_initramfs', 'do_deploy', 'do_install', d)
+            add_initramfs_dep_task('do_bundle_initramfs', d)
+            bb.build.addtask('do_transform_bundled_initramfs', 'do_deploy', 'do_bundle_initramfs', d)
         else:
-            d.appendVarFlag('do_bundle_initramfs', 'depends', ' ${INITRAMFS_IMAGE}:do_image_complete')
-    if image and bb.utils.to_boolean(d.getVar('INITRAMFS_IMAGE_BUNDLE')):
-        bb.build.addtask('do_transform_bundled_initramfs', 'do_deploy', 'do_bundle_initramfs', d)
+            add_initramfs_dep_task('do_deploy', d)
+            d.appendVarFlag('do_deploy', 'depends', ' ${PN}:do_install')
 
     # NOTE: setting INITRAMFS_TASK is for backward compatibility
     #       The preferred method is to set INITRAMFS_IMAGE, because
@@ -327,6 +333,8 @@ do_bundle_initramfs () {
 				mv -f ${KERNEL_OUTPUT_DIR}/$imageType.bak ${KERNEL_OUTPUT_DIR}/$imageType
 			fi
 		done
+	else
+		bbwarn "Calling do_bundle_initramfs with INITRAMFS_IMAGE_BUNDLE=1 is deprecated"
 	fi
 }
 do_bundle_initramfs[dirs] = "${B}"
@@ -346,8 +354,6 @@ python do_package:prepend () {
 python do_devshell:prepend () {
     os.environ["LDFLAGS"] = ''
 }
-
-addtask bundle_initramfs after do_install before do_deploy
 
 KERNEL_DEBUG_TIMESTAMPS ??= "0"
 
