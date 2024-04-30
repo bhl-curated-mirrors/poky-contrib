@@ -32,6 +32,7 @@ SRC_URI = "http://www.python.org/ftp/python/${PV}/Python-${PV}.tar.xz \
            file://0001-gh-114492-Initialize-struct-termios-before-calling-t.patch \
            file://0001-Lib-test-update-test-certificates-to-expire-far-in-t.patch \
            file://0001-gh-107811-tarfile-treat-overflow-in-UID-GID-as-failu.patch \
+           file://0001-gh-101732-Modules-_ssl.c-use-Y2038-compatible-openss.patch \
            "
 
 SRC_URI:append:class-native = " \

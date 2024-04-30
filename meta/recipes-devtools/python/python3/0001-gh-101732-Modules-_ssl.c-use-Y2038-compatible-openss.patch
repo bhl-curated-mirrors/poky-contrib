@@ -1,0 +1,37 @@
+From d7b3c2017bfe5132201c83a7c9667f9a0a469d5e Mon Sep 17 00:00:00 2001
+From: Alexander Kanavin <alex.kanavin@gmail.com>
+Date: Tue, 30 Apr 2024 14:08:57 +0200
+Subject: [PATCH] gh-101732: Modules/_ssl.c: use Y2038 compatible openssl
+ function when available
+
+Upstream-Status: Submitted [https://github.com/python/cpython/pull/118425]
+Signed-off-by: Alexander Kanavin <alex@linutronix.de>
+---
+ .../Library/2024-04-30-12-59-04.gh-issue-101732.29zUDu.rst    | 1 +
+ Modules/_ssl.c                                                | 4 ++++
+ 2 files changed, 5 insertions(+)
+ create mode 100644 Misc/NEWS.d/next/Library/2024-04-30-12-59-04.gh-issue-101732.29zUDu.rst
+
+diff --git a/Misc/NEWS.d/next/Library/2024-04-30-12-59-04.gh-issue-101732.29zUDu.rst b/Misc/NEWS.d/next/Library/2024-04-30-12-59-04.gh-issue-101732.29zUDu.rst
+new file mode 100644
+index 0000000..354dfc4
+--- /dev/null
++++ b/Misc/NEWS.d/next/Library/2024-04-30-12-59-04.gh-issue-101732.29zUDu.rst
+@@ -0,0 +1 @@
++Use a Y2038 compatible openssl time function when available.
+diff --git a/Modules/_ssl.c b/Modules/_ssl.c
+index 85fbc16..fa87cfb 100644
+--- a/Modules/_ssl.c
++++ b/Modules/_ssl.c
+@@ -5074,7 +5074,11 @@ PySSLSession_clear(PySSLSession *self)
+ 
+ static PyObject *
+ PySSLSession_get_time(PySSLSession *self, void *closure) {
++#if OPENSSL_VERSION_NUMBER >= 0x30300000L
++    return _PyLong_FromTime_t(SSL_SESSION_get_time_ex(self->session));
++#else
+     return PyLong_FromLong(SSL_SESSION_get_time(self->session));
++#endif
+ }
+ 
+ PyDoc_STRVAR(PySSLSession_get_time_doc,
