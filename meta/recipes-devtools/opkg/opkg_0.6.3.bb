@@ -17,7 +17,6 @@ SRC_URI = "http://downloads.yoctoproject.org/releases/${BPN}/${BPN}-${PV}.tar.gz
            file://0001-opkg_conf-create-opkg.lock-in-run-instead-of-var-run.patch \
            file://0001-libopkg-Use-libgen.h-to-provide-basename-API.patch \
            file://run-ptest \
-           file://wrapper \
            "
 
 SRC_URI[sha256sum] = "f3938e359646b406c40d5d442a1467c7e72357f91ab822e442697529641e06de"
@@ -55,8 +54,6 @@ do_install:append () {
 
 	# We need to create the lock directory
 	install -d ${D}${OPKGLIBDIR}/opkg
-	mv ${D}${bindir}/opkg ${D}${bindir}/opkg.real
-	install -m 0755 ${WORKDIR}/wrapper ${D}${bindir}/opkg
 }
 
 do_install_ptest () {
@@ -73,7 +70,7 @@ def qa_check_solver_deprecation (pn, d, messages):
         oe.qa.handle_error("internal-solver-deprecation", "The opkg internal solver will be deprecated in future opkg releases. Consider enabling \"libsolv\" in PACKAGECONFIG.", d)
 
 
-RDEPENDS:${PN} = "${VIRTUAL-RUNTIME_update-alternatives} opkg-arch-config libarchive bash"
+RDEPENDS:${PN} = "${VIRTUAL-RUNTIME_update-alternatives} opkg-arch-config libarchive"
 RDEPENDS:${PN}:class-native = ""
 RDEPENDS:${PN}:class-nativesdk = ""
 RDEPENDS:${PN}-ptest += "make binutils python3-core python3-compression bash python3-crypt python3-io"
