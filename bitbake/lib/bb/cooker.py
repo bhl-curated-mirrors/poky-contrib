@@ -350,6 +350,11 @@ class BBCooker:
     def revalidateCaches(self):
         bb.parse.clear_cache()
 
+        # Unfortunately we've seen issues where changes are made by the UI side and are
+        # in the disk cache but these tests don't pick up the file changes as they're
+        # still proceeding through the VFS. Use the sync to avoid this.
+        os.sync()
+
         clean = True
         for f in self.configwatched:
             if not bb.parse.check_mtime(f, self.configwatched[f]):
