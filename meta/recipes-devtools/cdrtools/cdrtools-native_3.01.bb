@@ -41,5 +41,5 @@ do_configure() {
 }
 
 do_install() {
-	make install GMAKE_NOWARN=true INS_BASE=${prefix} DESTDIR=${D}
+	oe_runmake install INS_BASE=${prefix} DESTDIR=${D}
 }
