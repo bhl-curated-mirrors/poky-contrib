@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: MIT
 #
 
-inherit kernel-uboot kernel-artifact-names uboot-config
+inherit kernel-uboot kernel-artifact-names
+require conf/uboot.conf
 
 def get_fit_replacement_type(d):
     kerneltypes = d.getVar('KERNEL_IMAGETYPES') or ""
