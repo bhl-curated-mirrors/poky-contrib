@@ -351,6 +351,9 @@ python setup_debugfs () {
     setup_debugfs_variables(d)
 }
 
+IMAGE_TASK_POSTFUNCS ?= ""
+IMAGE_TASK_CLEANDIRS ?= ""
+
 python () {
     vardeps = set()
     # We allow CONVERSIONTYPES to have duplicates. That avoids breaking
@@ -507,12 +510,15 @@ python () {
         d.setVar(task, '\n'.join(cmds))
         d.setVarFlag(task, 'func', '1')
         d.setVarFlag(task, 'fakeroot', '1')
+        d.setVarFlag(task, 'imagetype', realt)
 
         d.appendVarFlag(task, 'prefuncs', ' ' + debug + ' set_image_size')
         d.prependVarFlag(task, 'postfuncs', 'create_symlinks ')
         d.appendVarFlag(task, 'subimages', ' ' + ' '.join(subimages))
         d.appendVarFlag(task, 'vardeps', ' ' + ' '.join(vardeps))
         d.appendVarFlag(task, 'vardepsexclude', ' DATETIME DATE ' + ' '.join(vardepsexclude))
+        d.appendVarFlag(task, 'postfuncs', ' ' + d.getVar("IMAGE_TASK_POSTFUNCS"))
+        d.appendVarFlag(task, 'cleandirs', ' ' + d.getVar("IMAGE_TASK_CLEANDIRS"))
 
         bb.debug(2, "Adding task %s before %s, after %s" % (task, 'do_image_complete', after))
         bb.build.addtask(task, 'do_image_complete', after, d)
