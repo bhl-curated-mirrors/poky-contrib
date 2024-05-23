@@ -75,6 +75,14 @@ def get_source_date_epoch_from_known_files(d, sourcedir):
     return source_date_epoch
 
 def find_git_folder(d, sourcedir):
+    # First guess: UNPACKDIR/git
+    # This is the default git fetcher unpack path
+    unpackdir = d.getVar('UNPACKDIR')
+    gitpath = os.path.join(unpackdir, "git/.git")
+    if os.path.isdir(gitpath):
+        return gitpath
+
+    # Second guess: ${S}
     gitpath = os.path.join(sourcedir, ".git")
     if os.path.isdir(gitpath):
         return gitpath
