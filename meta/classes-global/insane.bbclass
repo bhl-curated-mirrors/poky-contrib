@@ -1603,9 +1603,6 @@ python () {
         bb.warn("Recipe %s sets S variable with trailing slash '%s', remove it" % (d.getVar("PN"), d.getVar("S")))
     if builddir[-1] == '/':
         bb.warn("Recipe %s sets B variable with trailing slash '%s', remove it" % (d.getVar("PN"), d.getVar("B")))
-    for var in ["do_install", "do_compile"]:
-        if "${WORKDIR}" in d.getVar(var, False):
-            bb.warn("Using ${WORKDIR} in %s is not recommended" % var)
 
     # Some people mistakenly use DEPENDS:${PN} instead of DEPENDS and wonder
     # why it doesn't work.
