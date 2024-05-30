@@ -149,6 +149,15 @@ class Wget(FetchMethod):
         # source, one with an incorrect checksum)
         bb.fetch2.verify_checksum(ud, d, localpath=localpath, fatal_nochecksum=False)
 
+        # Sanity check since wget can pretend it succeed when it didn't
+        # Also, this used to happen if sourceforge sent us to the mirror page
+        if not os.path.exists(localpath):
+            raise FetchError("The fetch command returned success for url %s but %s doesn't exist?!" % (uri, localpath), uri)
+
+        if os.path.getsize(localpath) == 0:
+            os.remove(localpath)
+            raise FetchError("The fetch of %s resulted in a zero size file?! Deleting and failing since this isn't right." % (uri), uri)
+
         # Remove the ".tmp" and move the file into position atomically
         # Our lock prevents multiple writers but mirroring code may grab incomplete files
         os.rename(localpath, localpath[:-4])
