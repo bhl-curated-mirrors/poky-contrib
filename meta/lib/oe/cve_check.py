@@ -71,11 +71,10 @@ def _cmpkey(release, patch_l, pre_l, pre_v):
     return _release, _patch, _pre
 
 
-def get_patched_cves(d):
+def get_cve_patches(d):
     """
-    Get patches that solve CVEs using the "CVE: " tag.
+    Get CVEs that are solved from applied patches
     """
-
     import re
     import oe.patch
 
@@ -88,7 +87,7 @@ def get_patched_cves(d):
     # (cve_match regular expression)
     cve_file_name_match = re.compile(r".*(CVE-\d{4}-\d+)", re.IGNORECASE)
 
-    patched_cves = set()
+    cve_patches = {}
     patches = oe.patch.src_patches(d)
     bb.debug(2, "Scanning %d patches for CVEs" % len(patches))
     for url in patches:
@@ -98,7 +97,7 @@ def get_patched_cves(d):
         fname_match = cve_file_name_match.search(patch_file)
         if fname_match:
             cve = fname_match.group(1).upper()
-            patched_cves.add(cve)
+            cve_patches.setdefault(cve, []).append(url)
             bb.debug(2, "Found %s from patch file name %s" % (cve, patch_file))
 
         # Remote patches won't be present and compressed patches won't be
@@ -124,11 +123,21 @@ def get_patched_cves(d):
             cves = patch_text[match.start()+5:match.end()]
             for cve in cves.split():
                 bb.debug(2, "Patch %s solves %s" % (patch_file, cve))
-                patched_cves.add(cve)
+                cve_patches.setdefault(cve, []).append(url)
                 text_match = True
 
         if not fname_match and not text_match:
             bb.debug(2, "Patch %s doesn't solve CVEs" % patch_file)
+
+    return cve_patches
+
+
+def get_patched_cves(d):
+    """
+    Get all patched CVEs, even those already fixed by upstream
+    """
+
+    patched_cves = set(get_cve_patches(d).keys())
 
     # Search for additional patched CVEs
     for cve in (d.getVarFlags("CVE_STATUS") or {}):
