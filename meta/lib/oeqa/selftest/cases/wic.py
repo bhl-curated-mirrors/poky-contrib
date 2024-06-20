@@ -435,159 +435,141 @@ class Wic(WicTestCase):
     def test_exclude_path(self):
         """Test --exclude-path wks option."""
 
-        oldpath = os.environ['PATH']
-        os.environ['PATH'] = get_bb_var("PATH", "wic-tools")
-
-        try:
-            wks_file = 'temp.wks'
-            with open(wks_file, 'w') as wks:
-                rootfs_dir = get_bb_var('IMAGE_ROOTFS', 'core-image-minimal')
-                wks.write("""
+        wks_file = 'temp.wks'
+        with open(wks_file, 'w') as wks:
+            rootfs_dir = get_bb_var('IMAGE_ROOTFS', 'core-image-minimal')
+            wks.write("""
 part / --source rootfs --ondisk mmcblk0 --fstype=ext4 --exclude-path usr
 part /usr --source rootfs --ondisk mmcblk0 --fstype=ext4 --rootfs-dir %s/usr
 part /etc --source rootfs --ondisk mmcblk0 --fstype=ext4 --exclude-path bin/ --rootfs-dir %s/usr"""
-                          % (rootfs_dir, rootfs_dir))
-            runCmd("wic create %s -e core-image-minimal -o %s" \
-                                       % (wks_file, self.resultdir))
+                        % (rootfs_dir, rootfs_dir))
+        runCmd("wic create %s -e core-image-minimal -o %s" \
+                                    % (wks_file, self.resultdir))
 
-            os.remove(wks_file)
-            wicout = glob(os.path.join(self.resultdir, "%s-*direct" % 'temp'))
-            self.assertEqual(1, len(wicout))
+        os.remove(wks_file)
+        wicout = glob(os.path.join(self.resultdir, "%s-*direct" % 'temp'))
+        self.assertEqual(1, len(wicout))
 
-            wicimg = wicout[0]
+        wicimg = wicout[0]
 
-            # verify partition size with wic
-            res = runCmd("parted -m %s unit b p 2>/dev/null" % wicimg)
+        # verify partition size with wic
+        res = runCmd("parted -m %s unit b p 2>/dev/null" % wicimg)
 
-            # parse parted output which looks like this:
-            # BYT;\n
-            # /var/tmp/wic/build/tmpfwvjjkf_-201611101222-hda.direct:200MiB:file:512:512:msdos::;\n
-            # 1:0.00MiB:200MiB:200MiB:ext4::;\n
-            partlns = res.output.splitlines()[2:]
+        # parse parted output which looks like this:
+        # BYT;\n
+        # /var/tmp/wic/build/tmpfwvjjkf_-201611101222-hda.direct:200MiB:file:512:512:msdos::;\n
+        # 1:0.00MiB:200MiB:200MiB:ext4::;\n
+        partlns = res.output.splitlines()[2:]
 
-            self.assertEqual(3, len(partlns))
+        self.assertEqual(3, len(partlns))
 
-            for part in [1, 2, 3]:
-                part_file = os.path.join(self.resultdir, "selftest_img.part%d" % part)
-                partln = partlns[part-1].split(":")
-                self.assertEqual(7, len(partln))
-                start = int(partln[1].rstrip("B")) / 512
-                length = int(partln[3].rstrip("B")) / 512
-                runCmd("dd if=%s of=%s skip=%d count=%d" %
-                                           (wicimg, part_file, start, length))
+        for part in [1, 2, 3]:
+            part_file = os.path.join(self.resultdir, "selftest_img.part%d" % part)
+            partln = partlns[part-1].split(":")
+            self.assertEqual(7, len(partln))
+            start = int(partln[1].rstrip("B")) / 512
+            length = int(partln[3].rstrip("B")) / 512
+            runCmd("dd if=%s of=%s skip=%d count=%d" %
+                                        (wicimg, part_file, start, length))
 
-            # Test partition 1, should contain the normal root directories, except
-            # /usr.
-            res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % \
-                             os.path.join(self.resultdir, "selftest_img.part1"))
-            files = extract_files(res.output)
-            self.assertIn("etc", files)
-            self.assertNotIn("usr", files)
+        # Test partition 1, should contain the normal root directories, except
+        # /usr.
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % \
+                            os.path.join(self.resultdir, "selftest_img.part1"))
+        files = extract_files(res.output)
+        self.assertIn("etc", files)
+        self.assertNotIn("usr", files)
 
-            # Partition 2, should contain common directories for /usr, not root
-            # directories.
-            res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % \
-                             os.path.join(self.resultdir, "selftest_img.part2"))
-            files = extract_files(res.output)
-            self.assertNotIn("etc", files)
-            self.assertNotIn("usr", files)
-            self.assertIn("share", files)
+        # Partition 2, should contain common directories for /usr, not root
+        # directories.
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % \
+                            os.path.join(self.resultdir, "selftest_img.part2"))
+        files = extract_files(res.output)
+        self.assertNotIn("etc", files)
+        self.assertNotIn("usr", files)
+        self.assertIn("share", files)
 
-            # Partition 3, should contain the same as partition 2, including the bin
-            # directory, but not the files inside it.
-            res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % \
-                             os.path.join(self.resultdir, "selftest_img.part3"))
-            files = extract_files(res.output)
-            self.assertNotIn("etc", files)
-            self.assertNotIn("usr", files)
-            self.assertIn("share", files)
-            self.assertIn("bin", files)
-            res = runCmd("debugfs -R 'ls -p bin' %s 2>/dev/null" % \
-                             os.path.join(self.resultdir, "selftest_img.part3"))
-            files = extract_files(res.output)
-            self.assertIn(".", files)
-            self.assertIn("..", files)
-            self.assertEqual(2, len(files))
+        # Partition 3, should contain the same as partition 2, including the bin
+        # directory, but not the files inside it.
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % \
+                            os.path.join(self.resultdir, "selftest_img.part3"))
+        files = extract_files(res.output)
+        self.assertNotIn("etc", files)
+        self.assertNotIn("usr", files)
+        self.assertIn("share", files)
+        self.assertIn("bin", files)
+        res = runCmd("debugfs -R 'ls -p bin' %s 2>/dev/null" % \
+                            os.path.join(self.resultdir, "selftest_img.part3"))
+        files = extract_files(res.output)
+        self.assertIn(".", files)
+        self.assertIn("..", files)
+        self.assertEqual(2, len(files))
 
-            for part in [1, 2, 3]:
-                part_file = os.path.join(self.resultdir, "selftest_img.part%d" % part)
-                os.remove(part_file)
+        for part in [1, 2, 3]:
+            part_file = os.path.join(self.resultdir, "selftest_img.part%d" % part)
+            os.remove(part_file)
 
-        finally:
-            os.environ['PATH'] = oldpath
 
     def test_include_path(self):
         """Test --include-path wks option."""
 
-        oldpath = os.environ['PATH']
-        os.environ['PATH'] = get_bb_var("PATH", "wic-tools")
-
-        try:
-            include_path = os.path.join(self.resultdir, 'test-include')
-            os.makedirs(include_path)
-            with open(os.path.join(include_path, 'test-file'), 'w') as t:
-                t.write("test\n")
-            wks_file = os.path.join(include_path, 'temp.wks')
-            with open(wks_file, 'w') as wks:
-                rootfs_dir = get_bb_var('IMAGE_ROOTFS', 'core-image-minimal')
-                wks.write("""
+        include_path = os.path.join(self.resultdir, 'test-include')
+        os.makedirs(include_path)
+        with open(os.path.join(include_path, 'test-file'), 'w') as t:
+            t.write("test\n")
+        wks_file = os.path.join(include_path, 'temp.wks')
+        with open(wks_file, 'w') as wks:
+            rootfs_dir = get_bb_var('IMAGE_ROOTFS', 'core-image-minimal')
+            wks.write("""
 part /part1 --source rootfs --ondisk mmcblk0 --fstype=ext4
 part /part2 --source rootfs --ondisk mmcblk0 --fstype=ext4 --include-path %s"""
-                          % (include_path))
-            runCmd("wic create %s -e core-image-minimal -o %s" \
-                                       % (wks_file, self.resultdir))
+                        % (include_path))
+        runCmd("wic create %s -e core-image-minimal -o %s" \
+                                    % (wks_file, self.resultdir))
 
-            part1 = glob(os.path.join(self.resultdir, 'temp-*.direct.p1'))[0]
-            part2 = glob(os.path.join(self.resultdir, 'temp-*.direct.p2'))[0]
+        part1 = glob(os.path.join(self.resultdir, 'temp-*.direct.p1'))[0]
+        part2 = glob(os.path.join(self.resultdir, 'temp-*.direct.p2'))[0]
 
-            # Test partition 1, should not contain 'test-file'
-            res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1))
-            files = extract_files(res.output)
-            self.assertNotIn('test-file', files)
-            self.assertEqual(True, files_own_by_root(res.output))
+        # Test partition 1, should not contain 'test-file'
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1))
+        files = extract_files(res.output)
+        self.assertNotIn('test-file', files)
+        self.assertEqual(True, files_own_by_root(res.output))
 
-            # Test partition 2, should contain 'test-file'
-            res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part2))
-            files = extract_files(res.output)
-            self.assertIn('test-file', files)
-            self.assertEqual(True, files_own_by_root(res.output))
+        # Test partition 2, should contain 'test-file'
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part2))
+        files = extract_files(res.output)
+        self.assertIn('test-file', files)
+        self.assertEqual(True, files_own_by_root(res.output))
 
-        finally:
-            os.environ['PATH'] = oldpath
 
     def test_include_path_embeded(self):
         """Test --include-path wks option."""
 
-        oldpath = os.environ['PATH']
-        os.environ['PATH'] = get_bb_var("PATH", "wic-tools")
-
-        try:
-            include_path = os.path.join(self.resultdir, 'test-include')
-            os.makedirs(include_path)
-            with open(os.path.join(include_path, 'test-file'), 'w') as t:
-                t.write("test\n")
-            wks_file = os.path.join(include_path, 'temp.wks')
-            with open(wks_file, 'w') as wks:
-                wks.write("""
+        include_path = os.path.join(self.resultdir, 'test-include')
+        os.makedirs(include_path)
+        with open(os.path.join(include_path, 'test-file'), 'w') as t:
+            t.write("test\n")
+        wks_file = os.path.join(include_path, 'temp.wks')
+        with open(wks_file, 'w') as wks:
+            wks.write("""
 part / --source rootfs  --fstype=ext4 --include-path %s --include-path core-image-minimal-mtdutils export/"""
-                          % (include_path))
-            runCmd("wic create %s -e core-image-minimal -o %s" \
-                                       % (wks_file, self.resultdir))
+                        % (include_path))
+        runCmd("wic create %s -e core-image-minimal -o %s" \
+                                    % (wks_file, self.resultdir))
 
-            part1 = glob(os.path.join(self.resultdir, 'temp-*.direct.p1'))[0]
+        part1 = glob(os.path.join(self.resultdir, 'temp-*.direct.p1'))[0]
 
-            res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1))
-            files = extract_files(res.output)
-            self.assertIn('test-file', files)
-            self.assertEqual(True, files_own_by_root(res.output))
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1))
+        files = extract_files(res.output)
+        self.assertIn('test-file', files)
+        self.assertEqual(True, files_own_by_root(res.output))
 
-            res = runCmd("debugfs -R 'ls -p /export/etc/' %s 2>/dev/null" % (part1))
-            files = extract_files(res.output)
-            self.assertIn('passwd', files)
-            self.assertEqual(True, files_own_by_root(res.output))
+        res = runCmd("debugfs -R 'ls -p /export/etc/' %s 2>/dev/null" % (part1))
+        files = extract_files(res.output)
+        self.assertIn('passwd', files)
+        self.assertEqual(True, files_own_by_root(res.output))
 
-        finally:
-            os.environ['PATH'] = oldpath
 
     def test_include_path_errors(self):
         """Test --include-path wks option error handling."""
@@ -638,9 +620,6 @@ part / --source rootfs  --fstype=ext4 --include-path %s --include-path core-imag
         # prepare wicenv and rootfs
         bitbake('core-image-minimal core-image-minimal-mtdutils -c do_rootfs_wicenv')
 
-        oldpath = os.environ['PATH']
-        os.environ['PATH'] = get_bb_var("PATH", "wic-tools")
-
         t_normal = """
 part / --source rootfs --fstype=ext4
 """
@@ -657,61 +636,52 @@ part /etc --source rootfs --fstype=ext4 --change-directory=etc
 """
         tests = [t_normal, t_exclude, t_multi, t_change]
 
-        try:
-            for test in tests:
-                include_path = os.path.join(self.resultdir, 'test-include')
-                os.makedirs(include_path)
-                wks_file = os.path.join(include_path, 'temp.wks')
-                with open(wks_file, 'w') as wks:
-                    wks.write(test)
-                runCmd("wic create %s -e core-image-minimal -o %s" \
-                                       % (wks_file, self.resultdir))
-
-                for part in glob(os.path.join(self.resultdir, 'temp-*.direct.p*')):
-                    res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part))
-                    self.assertEqual(True, files_own_by_root(res.output))
-
-                config = 'IMAGE_FSTYPES += "wic"\nWKS_FILE = "%s"\n' % wks_file
-                self.append_config(config)
-                bitbake('core-image-minimal')
-                tmpdir = os.path.join(get_bb_var('WORKDIR', 'core-image-minimal'),'build-wic')
-
-                # check each partition for permission
-                for part in glob(os.path.join(tmpdir, 'temp-*.direct.p*')):
-                    res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part))
-                    self.assertTrue(files_own_by_root(res.output)
-                        ,msg='Files permission incorrect using wks set "%s"' % test)
-
-                # clean config and result directory for next cases
-                self.remove_config(config)
-                rmtree(self.resultdir, ignore_errors=True)
-
-        finally:
-            os.environ['PATH'] = oldpath
-
-    def test_change_directory(self):
-        """Test --change-directory wks option."""
-
-        oldpath = os.environ['PATH']
-        os.environ['PATH'] = get_bb_var("PATH", "wic-tools")
-
-        try:
+        for test in tests:
             include_path = os.path.join(self.resultdir, 'test-include')
             os.makedirs(include_path)
             wks_file = os.path.join(include_path, 'temp.wks')
             with open(wks_file, 'w') as wks:
-                wks.write("part /etc --source rootfs --fstype=ext4 --change-directory=etc")
+                wks.write(test)
             runCmd("wic create %s -e core-image-minimal -o %s" \
-                                       % (wks_file, self.resultdir))
+                                    % (wks_file, self.resultdir))
 
-            part1 = glob(os.path.join(self.resultdir, 'temp-*.direct.p1'))[0]
+            for part in glob(os.path.join(self.resultdir, 'temp-*.direct.p*')):
+                res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part))
+                self.assertEqual(True, files_own_by_root(res.output))
 
-            res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1))
-            files = extract_files(res.output)
-            self.assertIn('passwd', files)
+            config = 'IMAGE_FSTYPES += "wic"\nWKS_FILE = "%s"\n' % wks_file
+            self.append_config(config)
+            bitbake('core-image-minimal')
+            tmpdir = os.path.join(get_bb_var('WORKDIR', 'core-image-minimal'),'build-wic')
 
-        finally:
-            os.environ['PATH'] = oldpath
+            # check each partition for permission
+            for part in glob(os.path.join(tmpdir, 'temp-*.direct.p*')):
+                res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part))
+                self.assertTrue(files_own_by_root(res.output)
+                    ,msg='Files permission incorrect using wks set "%s"' % test)
+
+            # clean config and result directory for next cases
+            self.remove_config(config)
+            rmtree(self.resultdir, ignore_errors=True)
+
+
+    def test_change_directory(self):
+        """Test --change-directory wks option."""
+
+        include_path = os.path.join(self.resultdir, 'test-include')
+        os.makedirs(include_path)
+        wks_file = os.path.join(include_path, 'temp.wks')
+        with open(wks_file, 'w') as wks:
+            wks.write("part /etc --source rootfs --fstype=ext4 --change-directory=etc")
+        runCmd("wic create %s -e core-image-minimal -o %s" \
+                                    % (wks_file, self.resultdir))
+
+        part1 = glob(os.path.join(self.resultdir, 'temp-*.direct.p1'))[0]
+
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1))
+        files = extract_files(res.output)
+        self.assertIn('passwd', files)
+
 
     def test_change_directory_errors(self):
         """Test --change-directory wks option error handling."""
@@ -734,41 +704,35 @@ part /etc --source rootfs --fstype=ext4 --change-directory=etc
     def test_no_fstab_update(self):
         """Test --no-fstab-update wks option."""
 
-        oldpath = os.environ['PATH']
-        os.environ['PATH'] = get_bb_var("PATH", "wic-tools")
-
         # Get stock fstab from base-files recipe
         bitbake('base-files -c do_install')
         bf_fstab = os.path.join(get_bb_var('D', 'base-files'), 'etc', 'fstab')
         self.assertEqual(True, os.path.exists(bf_fstab))
         bf_fstab_md5sum = runCmd('md5sum %s 2>/dev/null' % bf_fstab).output.split(" ")[0]
 
-        try:
-            no_fstab_update_path = os.path.join(self.resultdir, 'test-no-fstab-update')
-            os.makedirs(no_fstab_update_path)
-            wks_file = os.path.join(no_fstab_update_path, 'temp.wks')
-            with open(wks_file, 'w') as wks:
-                wks.writelines(['part / --source rootfs --fstype=ext4 --label rootfs\n',
-                                'part /mnt/p2 --source rootfs --rootfs-dir=core-image-minimal ',
-                                '--fstype=ext4 --label p2 --no-fstab-update\n'])
-            runCmd("wic create %s -e core-image-minimal -o %s" \
-                                       % (wks_file, self.resultdir))
+        no_fstab_update_path = os.path.join(self.resultdir, 'test-no-fstab-update')
+        os.makedirs(no_fstab_update_path)
+        wks_file = os.path.join(no_fstab_update_path, 'temp.wks')
+        with open(wks_file, 'w') as wks:
+            wks.writelines(['part / --source rootfs --fstype=ext4 --label rootfs\n',
+                            'part /mnt/p2 --source rootfs --rootfs-dir=core-image-minimal ',
+                            '--fstype=ext4 --label p2 --no-fstab-update\n'])
+        runCmd("wic create %s -e core-image-minimal -o %s" \
+                                    % (wks_file, self.resultdir))
 
-            part_fstab_md5sum = []
-            for i in range(1, 3):
-                part = glob(os.path.join(self.resultdir, 'temp-*.direct.p') + str(i))[0]
-                part_fstab = runCmd("debugfs -R 'cat etc/fstab' %s 2>/dev/null" % (part))
-                part_fstab_md5sum.append(hashlib.md5((part_fstab.output + "\n\n").encode('utf-8')).hexdigest())
+        part_fstab_md5sum = []
+        for i in range(1, 3):
+            part = glob(os.path.join(self.resultdir, 'temp-*.direct.p') + str(i))[0]
+            part_fstab = runCmd("debugfs -R 'cat etc/fstab' %s 2>/dev/null" % (part))
+            part_fstab_md5sum.append(hashlib.md5((part_fstab.output + "\n\n").encode('utf-8')).hexdigest())
 
-            # '/etc/fstab' in partition 2 should contain the same stock fstab file
-            # as the one installed by the base-file recipe.
-            self.assertEqual(bf_fstab_md5sum, part_fstab_md5sum[1])
+        # '/etc/fstab' in partition 2 should contain the same stock fstab file
+        # as the one installed by the base-file recipe.
+        self.assertEqual(bf_fstab_md5sum, part_fstab_md5sum[1])
 
-            # '/etc/fstab' in partition 1 should contain an updated fstab file.
-            self.assertNotEqual(bf_fstab_md5sum, part_fstab_md5sum[0])
+        # '/etc/fstab' in partition 1 should contain an updated fstab file.
+        self.assertNotEqual(bf_fstab_md5sum, part_fstab_md5sum[0])
 
-        finally:
-            os.environ['PATH'] = oldpath
 
     def test_no_fstab_update_errors(self):
         """Test --no-fstab-update wks option error handling."""
