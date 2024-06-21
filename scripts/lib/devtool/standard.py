@@ -2088,7 +2088,6 @@ def _get_layer(layername, d):
         logger.warning("Consider using path instead of base name to specify layer:\n\t\t%s" % '\n\t\t'.join(layer_paths))
         return os.path.abspath(layer_paths[0])
 
-
 def finish(args, config, basepath, workspace):
     """Entry point for the devtool 'finish' subcommand"""
     import bb
@@ -2120,6 +2119,7 @@ def finish(args, config, basepath, workspace):
 
         destlayerdir = _get_layer(args.destination, tinfoil.config_data)
         recipefile = rd.getVar('FILE')
+        upgrade_finish_tasks = (rd.getVar('RECIPE_UPGRADE_FINISH_EXTRA_TASKS') or '').split()
         recipedir = os.path.dirname(recipefile)
         origlayerdir = oe.recipeutils.find_layerdir(recipefile)
 
@@ -2265,6 +2265,9 @@ def finish(args, config, basepath, workspace):
     else:
         _reset([args.recipename], no_clean=no_clean, remove_work=remove_work, config=config, basepath=basepath, workspace=workspace)
 
+        if removing_original:
+            for t in upgrade_finish_tasks:
+                exec_build_env_command(config.init_path, basepath, 'bitbake -c {} {}'.format(t, args.recipename))
     return 0
 
 
