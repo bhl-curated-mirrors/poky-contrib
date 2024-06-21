@@ -65,3 +65,4 @@ do_deploy () {
 
 addtask deploy before do_build after do_compile
 
+RECIPE_NO_UPDATE_REASON = "Upgrades are handled in base systemd recipe"
