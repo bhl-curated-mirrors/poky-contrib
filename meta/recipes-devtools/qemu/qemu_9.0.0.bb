@@ -25,3 +25,6 @@ PACKAGECONFIG:class-nativesdk ??= "fdt sdl kvm pie slirp \
 "
 # ppc32 hosts are no longer supported in qemu
 COMPATIBLE_HOST:powerpc = "null"
+
+inherit recipe-upgrade-additional-rename
+RECIPE_UPGRADE_ADDITIONAL_RENAME = "qemu-native_{pv}.bb qemu-system-native_{pv}.bb"
