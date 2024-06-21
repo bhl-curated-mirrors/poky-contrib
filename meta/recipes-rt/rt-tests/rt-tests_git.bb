@@ -34,3 +34,6 @@ RDEPENDS:${PN}-ptest += " stress-ng python3 python3-multiprocessing python3-date
 
 FILES:${PN} += "${prefix}/src/backfire"
 RDEPENDS:${PN} += "bash"
+
+inherit recipe-upgrade-additional-rename
+RECIPE_UPGRADE_ADDITIONAL_RENAME = "hwlatdetect_{pv}.bb"

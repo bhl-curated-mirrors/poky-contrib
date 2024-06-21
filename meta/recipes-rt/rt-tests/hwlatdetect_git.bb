@@ -24,3 +24,5 @@ do_install() {
 FILES:${PN} += "${libdir}/python${PYTHON_BASEVERSION}/dist-packages/hwlatdetect.py"
 RDEPENDS:${PN} = "python3-core "
 RRECOMMENDS:${PN} = "kernel-module-hwlat-detector"
+
+RECIPE_NO_UPDATE_REASON = "Upgrades are handled in rt-tests recipe"
