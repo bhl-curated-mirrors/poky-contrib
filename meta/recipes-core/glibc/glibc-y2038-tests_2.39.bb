@@ -2,6 +2,7 @@ require glibc_${PV}.bb
 require glibc-tests.inc
 
 inherit ptest features_check
+inherit nospdx
 REQUIRED_DISTRO_FEATURES = "ptest"
 
 SRC_URI += "\
