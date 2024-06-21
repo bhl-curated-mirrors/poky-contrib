@@ -13,3 +13,6 @@ RDEPENDS:${PN}-glx =+ "${PN}-x11"
 FILES:${PN}-x11 =+ "${libdir}/libva-x11*${SOLIBS}"
 FILES:${PN}-glx =+ "${libdir}/libva-glx*${SOLIBS}"
 FILES:${PN}-wayland =+ "${libdir}/libva-wayland*${SOLIBS}"
+
+inherit recipe-upgrade-additional-rename
+RECIPE_UPGRADE_ADDITIONAL_RENAME = "libva-initial_{pv}.bb"
