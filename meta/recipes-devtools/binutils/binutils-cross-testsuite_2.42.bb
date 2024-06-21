@@ -10,6 +10,7 @@ deltask do_compile
 deltask do_install
 
 inherit nopackages
+inherit nospdx
 
 do_configure[dirs] += "${B}/ld ${B}/bfd"
 do_configure() {
