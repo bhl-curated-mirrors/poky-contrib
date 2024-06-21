@@ -17,3 +17,5 @@ do_install:append() {
 }
 
 BBCLASSEXTEND = "native nativesdk"
+
+RECIPE_NO_UPDATE_REASON = "Upgrades are handled in base util-linux recipe"
