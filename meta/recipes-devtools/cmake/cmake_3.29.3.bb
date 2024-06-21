@@ -66,3 +66,6 @@ FILES:${PN}-doc += "${docdir}/cmake-${CMAKE_MAJOR_VERSION}"
 FILES:${PN}-dev = ""
 
 BBCLASSEXTEND = "nativesdk"
+
+inherit recipe-upgrade-additional-rename
+RECIPE_UPGRADE_ADDITIONAL_RENAME = "cmake-native_{pv}.bb"
