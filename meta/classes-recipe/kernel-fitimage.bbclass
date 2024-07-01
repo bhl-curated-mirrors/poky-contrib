@@ -49,18 +49,28 @@ python __anonymous () {
         d.appendVarFlag('do_assemble_fitimage', 'depends',
                         ' u-boot-tools-native:do_populate_sysroot dtc-native:do_populate_sysroot')
 
+        # A fitImage with the initramfs bundled in the kernel Image is deployed by do_deploy.
+        # In case of a build from an empty TMPDIR a clean kernel re-build is required just because creating the bundled
+        # kernel image requires the kernel Makefile and therefore the kernel's populated build directory.
+        # In case of an unbundled fitImage assembling the fitImage works independenly from the kernel build framework.
+        # This allow to take the kernel binary from the sstated deploy directory. But it requires to assemble the
+        # fitImage in a separate task (do_deploy_fitimage_unbundled) running after do_deploy.
         initramfs_image = d.getVar('INITRAMFS_IMAGE')
         bundled = bb.utils.to_boolean(d.getVar('INITRAMFS_IMAGE_BUNDLE'))
         if initramfs_image:
             if bundled:
-                bb.build.addtask('do_assemble_fitimage_initramfs', 'do_deploy', 'do_bundle_initramfs', d)
+                fit_assemble_task = 'do_assemble_fitimage_initramfs'
+                bb.build.addtask(fit_assemble_task, 'do_deploy', 'do_bundle_initramfs', d)
             else:
-                bb.build.addtask('do_assemble_fitimage_initramfs', 'do_deploy', 'do_install', d)
+                fit_assemble_task = 'do_deploy_fitimage_unbundled'
+                bb.build.addtask(fit_assemble_task, 'do_build', 'do_deploy', d)
+                bb.build.addtask(fit_assemble_task + '_setscene', '', '', d)
+                d.appendVar('SSTATETASKS', fit_assemble_task)
 
-            d.appendVarFlag('do_assemble_fitimage_initramfs', 'depends',
+            d.appendVarFlag(fit_assemble_task, 'depends',
                             ' u-boot-tools-native:do_populate_sysroot dtc-native:do_populate_sysroot ${INITRAMFS_IMAGE}:do_image_complete')
             if providerdtb:
-                d.appendVarFlag('do_assemble_fitimage_initramfs', 'depends', ' virtual/dtb:do_populate_sysroot')
+                d.appendVarFlag(fit_assemble_task, 'depends', ' virtual/dtb:do_populate_sysroot')
 }
 
 
@@ -808,14 +818,29 @@ do_install:append() {
 }
 
 do_assemble_fitimage_initramfs() {
-	if [ "${INITRAMFS_IMAGE_BUNDLE}" = "1" ]; then
-		fitimage_assemble "fit-image-${INITRAMFS_IMAGE}.its" "${KERNEL_OUTPUT_DIR}/fitImage-bundle" ""
-		ln -sf fitImage-bundle "${B}/${KERNEL_OUTPUT_DIR}/fitImage"
-	else
-		fitimage_assemble "fit-image-${INITRAMFS_IMAGE}.its" "${KERNEL_OUTPUT_DIR}/fitImage-${INITRAMFS_IMAGE}" 1
-	fi
+	fitimage_assemble "fit-image-${INITRAMFS_IMAGE}.its" "${KERNEL_OUTPUT_DIR}/fitImage-bundle" ""
+	ln -sf fitImage-bundle "${B}/${KERNEL_OUTPUT_DIR}/fitImage"
 }
 do_assemble_fitimage_initramfs[dirs] = "${B}"
+
+do_deploy_fitimage_unbundled() {
+	fitimage_assemble "${DEPLOY_DIR_IMAGE}/fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}.its"\
+	  "${DEPLOY_DIR_IMAGE}/fitImage-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}${KERNEL_FIT_BIN_EXT}" 1
+	if [ -n "${KERNEL_FIT_LINK_NAME}" ] ; then
+		ln -snf "fitImage-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}${KERNEL_FIT_BIN_EXT}" "${DEPLOY_DIR_IMAGE}/fitImage-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_LINK_NAME}"
+		ln -snf fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}.its "${DEPLOY_DIR_IMAGE}/fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_LINK_NAME}"
+	fi
+}
+DEPLOYDIR_FITIMAGE_UNBUNDLED = "${WORKDIR}/deploy-fitimage-unbundled-${PN}"
+SSTATE_SKIP_CREATION:task-deploy-fitimage-unbundled = '1'
+do_deploy_fitimage_unbundled[sstate-inputdirs] = "${DEPLOYDIR_FITIMAGE_UNBUNDLED}"
+do_deploy_fitimage_unbundled[sstate-outputdirs] = "${DEPLOY_DIR_IMAGE}"
+python do_deploy_fitimage_unbundled_setscene () {
+    sstate_setscene(d)
+}
+do_deploy_fitimage_unbundled[dirs] = "${DEPLOY_DIR_IMAGE}"
+do_deploy_fitimage_unbundled[cleandirs] = "${DEPLOYDIR_FITIMAGE_UNBUNDLED}"
+do_deploy_fitimage_unbundled[stamp-extra-info] = "${MACHINE_ARCH}"
 
 do_kernel_generate_rsa_keys() {
 	if [ "${UBOOT_SIGN_ENABLE}" = "0" ] && [ "${FIT_GENERATE_KEYS}" = "1" ]; then
@@ -868,9 +893,24 @@ kernel_do_deploy[vardepsexclude] = "DATETIME"
 kernel_do_deploy:append() {
 	# Update deploy directory
 	if echo ${KERNEL_IMAGETYPES} | grep -wq "fitImage"; then
-
-		if [ "${INITRAMFS_IMAGE_BUNDLE}" != "1" ]; then
-			# deploy the artifacts of do_assemble_fitimage
+		if  [ -n "${INITRAMFS_IMAGE}" ] && [ "${INITRAMFS_IMAGE_BUNDLE}" != "1" ]; then
+			# do_deploy_fitimage_unbundled needs the linux.bin file for the unbundled fitImage deployment
+			bbnote "Deploying linux.bin and linux.comp file for do_deploy_fitimage_unbundled..."
+			uboot_prep_kimage
+			install -m 0644 ${B}/linux.bin $deployDir/linux.bin
+			install -m 0644 ${B}/linux.comp $deployDir/linux.comp
+			if [ -e "${B}/${KERNEL_OUTPUT_DIR}/setup.bin" ]; then
+				install -m 0644 "${B}/${KERNEL_OUTPUT_DIR}/setup.bin" "$deployDir/setup.bin"
+			fi
+		elif [ -n "${INITRAMFS_IMAGE}" ]; then
+			# deploy the artifacts created by do_assemble_fitimage_initramfs for bundled mode
+			bbnote "Copying fit-image-${INITRAMFS_IMAGE}.its source file..."
+			install -m 0644 ${B}/fit-image-${INITRAMFS_IMAGE}.its "$deployDir/fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}.its"
+			if [ -n "${KERNEL_FIT_LINK_NAME}" ] ; then
+				ln -snf fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}.its "$deployDir/fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_LINK_NAME}"
+			fi
+		else
+			# deploy the artifacts of do_assemble_fitimage (fitImage without initramfs)
 			bbnote "Copying fit-image.its source file..."
 			install -m 0644 ${B}/fit-image.its "$deployDir/fitImage-its-${KERNEL_FIT_NAME}.its"
 			if [ -n "${KERNEL_FIT_LINK_NAME}" ] ; then
@@ -881,24 +921,6 @@ kernel_do_deploy:append() {
 			install -m 0644 ${B}/linux.bin $deployDir/fitImage-linux.bin-${KERNEL_FIT_NAME}${KERNEL_FIT_BIN_EXT}
 			if [ -n "${KERNEL_FIT_LINK_NAME}" ] ; then
 				ln -snf fitImage-linux.bin-${KERNEL_FIT_NAME}${KERNEL_FIT_BIN_EXT} "$deployDir/fitImage-linux.bin-${KERNEL_FIT_LINK_NAME}"
-			fi
-		fi
-
-		if [ -n "${INITRAMFS_IMAGE}" ]; then
-			# deploy the artifacts of do_assemble_fitimage_initramfs for bundled as well as un-bundled mode
-			bbnote "Copying fit-image-${INITRAMFS_IMAGE}.its source file..."
-			install -m 0644 ${B}/fit-image-${INITRAMFS_IMAGE}.its "$deployDir/fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}.its"
-			if [ -n "${KERNEL_FIT_LINK_NAME}" ] ; then
-				ln -snf fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}.its "$deployDir/fitImage-its-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_LINK_NAME}"
-			fi
-
-			# deploy the artifacts of do_assemble_fitimage_initramfs for bundled mode only
-			if [ "${INITRAMFS_IMAGE_BUNDLE}" != "1" ]; then
-				bbnote "Copying fitImage-${INITRAMFS_IMAGE} file..."
-				install -m 0644 ${B}/${KERNEL_OUTPUT_DIR}/fitImage-${INITRAMFS_IMAGE} "$deployDir/fitImage-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}${KERNEL_FIT_BIN_EXT}"
-				if [ -n "${KERNEL_FIT_LINK_NAME}" ] ; then
-					ln -snf fitImage-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_NAME}${KERNEL_FIT_BIN_EXT} "$deployDir/fitImage-${INITRAMFS_IMAGE_NAME}-${KERNEL_FIT_LINK_NAME}"
-				fi
 			fi
 		fi
 	fi

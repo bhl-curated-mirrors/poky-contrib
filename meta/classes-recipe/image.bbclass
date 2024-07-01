@@ -147,7 +147,17 @@ do_rootfs[vardeps] += "${@rootfs_variables(d)}"
 # This follows many common usecases and user expectations.
 # But if you are building an image which doesn't need the kernel image at all,
 # you can unset this variable manually.
-KERNEL_DEPLOY_DEPEND ?= "virtual/kernel:do_deploy"
+def get_kernel_do_deploy(d):
+    kerneltypes = d.getVar('KERNEL_IMAGETYPES') or ""
+    kerneltype = d.getVar('KERNEL_IMAGETYPE') or ""
+    fitimage = kerneltype == 'fitImage' or 'fitImage' in kerneltypes.split()
+    initramfs_image = d.getVar('INITRAMFS_IMAGE') or ""
+    bundled = d.getVar('INITRAMFS_IMAGE_BUNDLE') == '1'
+    if fitimage and initramfs_image and not bundled:
+        return "virtual/kernel:do_deploy_fitimage_unbundled"
+    return "virtual/kernel:do_deploy"
+
+KERNEL_DEPLOY_DEPEND ?= "${@get_kernel_do_deploy(d)}"
 do_build[depends] += "${KERNEL_DEPLOY_DEPEND}"
 
 
