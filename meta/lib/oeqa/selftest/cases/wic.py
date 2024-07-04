@@ -1294,7 +1294,11 @@ class Wic2(WicTestCase):
                  'WKS_FILE = "test_efi_plugin.wks"\n'\
                  'MACHINE_FEATURES:append = " efi"\n'
         self.append_config(config)
-        bitbake('core-image-minimal core-image-minimal-initramfs ovmf')
+        # Rather than creating a special image which adds the dependency which is needed by the wks file
+        # core-image-minimal:do_image_wic[depends] += "core-image-minimal-initramfs:do_image_complete"
+        # core-image-minimal-initramf is built before it is used by core-image-minimal.
+        bitbake('core-image-minimal-initramfs')
+        bitbake('core-image-minimal ovmf')
         self.remove_config(config)
 
         with runqemu('core-image-minimal', ssh=False,
