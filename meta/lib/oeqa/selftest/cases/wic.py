@@ -10,7 +10,6 @@
 
 import os
 import sys
-import unittest
 import hashlib
 
 from glob import glob
@@ -70,6 +69,8 @@ class WicTestCase(OESelftestTestCase):
             bitbake('wic-tools core-image-minimal core-image-minimal-mtdutils')
             WicTestCase.image_is_ready = True
         rmtree(self.resultdir, ignore_errors=True)
+        # Fetch this so we don't need to do it in every test
+        self.wic_native_sysroot = get_bb_var("RECIPE_SYSROOT_NATIVE", "wic-tools")
 
     def tearDownLocal(self):
         """Remove resultdir as it may contain images."""
@@ -168,9 +169,8 @@ class Wic(WicTestCase):
                 out = glob(os.path.join(
                     self.resultdir, "%s-*.direct" % wksname))
                 self.assertEqual(1, len(out))
-                sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
                 # extract the content of the disk image to the temporary directory
-                cmd = "wic cp %s:1 %s -n %s" % (out[0], tmpdir, sysroot)
+                cmd = "wic cp %s:1 %s -n %s" % (out[0], tmpdir, self.wic_native_sysroot)
                 runCmd(cmd)
                 # check if the kernel is installed or not
                 kimgtype = get_bb_var('KERNEL_IMAGETYPE', img)
@@ -199,9 +199,8 @@ class Wic(WicTestCase):
                 wksname = os.path.splitext(os.path.basename(wks.name))[0]
                 out = glob(os.path.join(self.resultdir, "%s-*.direct" % wksname))
                 self.assertEqual(1, len(out))
-                sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
                 # extract the content of the disk image to the temporary directory
-                cmd = "wic cp %s:1 %s -n %s" % (out[0], tmpdir, sysroot)
+                cmd = "wic cp %s:1 %s -n %s" % (out[0], tmpdir, self.wic_native_sysroot)
                 runCmd(cmd)
                 # check if the kernel is installed or not
                 kimgtype = get_bb_var('KERNEL_IMAGETYPE', img)
@@ -283,9 +282,8 @@ class Wic(WicTestCase):
         kimgtype = get_bb_var('KERNEL_IMAGETYPE', 'core-image-minimal')
         self.append_config('IMAGE_EFI_BOOT_FILES = "%s;kernel"\n' % kimgtype)
         runCmd(cmd)
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
         images = glob(os.path.join(self.resultdir, "mkefidisk-*.direct"))
-        result = runCmd("wic ls %s:1/ -n %s" % (images[0], sysroot))       
+        result = runCmd("wic ls %s:1/ -n %s" % (images[0], self.wic_native_sysroot))
         self.assertIn("kernel",result.output)
 
     def test_sdimage_bootpart(self):
@@ -678,7 +676,7 @@ part /etc --source rootfs --fstype=ext4 --change-directory=etc
 
         part1 = glob(os.path.join(self.resultdir, 'temp-*.direct.p1'))[0]
 
-        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1))
+        res = runCmd("debugfs -R 'ls -p' %s 2>/dev/null" % (part1), native_sysroot=self.wic_native_sysroot)
         files = extract_files(res.output)
         self.assertIn('passwd', files)
 
@@ -723,7 +721,7 @@ part /etc --source rootfs --fstype=ext4 --change-directory=etc
         part_fstab_md5sum = []
         for i in range(1, 3):
             part = glob(os.path.join(self.resultdir, 'temp-*.direct.p') + str(i))[0]
-            part_fstab = runCmd("debugfs -R 'cat etc/fstab' %s 2>/dev/null" % (part))
+            part_fstab = runCmd("debugfs -R 'cat etc/fstab' %s 2>/dev/null" % (part), native_sysroot=self.wic_native_sysroot)
             part_fstab_md5sum.append(hashlib.md5((part_fstab.output + "\n\n").encode('utf-8')).hexdigest())
 
         # '/etc/fstab' in partition 2 should contain the same stock fstab file
@@ -783,7 +781,6 @@ part /etc --source rootfs --fstype=ext4 --change-directory=etc
     def test_partition_hidden_attributes(self):
         """Test --hidden wks option."""
         wks_file = 'temp.wks'
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
         try:
             with open(wks_file, 'w') as wks:
                 wks.write("""
@@ -795,9 +792,9 @@ bootloader --ptable gpt""")
                                        % (wks_file, self.resultdir))
             wicout = os.path.join(self.resultdir, "*.direct")
 
-            result = runCmd("%s/usr/sbin/sfdisk --part-attrs %s 1" % (sysroot, wicout))
+            result = runCmd("sfdisk --part-attrs %s 1" % wicout, native_sysroot=self.wic_native_sysroot)
             self.assertEqual('', result.output)
-            result = runCmd("%s/usr/sbin/sfdisk --part-attrs %s 2" % (sysroot, wicout))
+            result = runCmd("sfdisk --part-attrs %s 2" % wicout, native_sysroot=self.wic_native_sysroot)
             self.assertEqual('RequiredPartition', result.output)
 
         finally:
@@ -848,11 +845,10 @@ class Wic2(WicTestCase):
         """Test image vars directory selection -v option"""
         image = 'core-image-minimal'
         imgenvdir = self._get_image_env_path(image)
-        native_sysroot = get_bb_var("RECIPE_SYSROOT_NATIVE", "wic-tools")
 
         runCmd("wic create wictestdisk "
                                    "--image-name=%s -v %s -n %s -o %s"
-                                   % (image, imgenvdir, native_sysroot,
+                                   % (image, imgenvdir, self.wic_native_sysroot,
                                       self.resultdir))
         self.assertEqual(1, len(glob(os.path.join(self.resultdir, "wictestdisk-*direct"))))
 
@@ -860,14 +856,13 @@ class Wic2(WicTestCase):
         """Test image vars directory selection --vars option"""
         image = 'core-image-minimal'
         imgenvdir = self._get_image_env_path(image)
-        native_sysroot = get_bb_var("RECIPE_SYSROOT_NATIVE", "wic-tools")
 
         runCmd("wic create wictestdisk "
                                    "--image-name=%s "
                                    "--vars %s "
                                    "--native-sysroot %s "
                                    "--outdir %s"
-                                   % (image, imgenvdir, native_sysroot,
+                                   % (image, imgenvdir, self.wic_native_sysroot,
                                       self.resultdir))
         self.assertEqual(1, len(glob(os.path.join(self.resultdir, "wictestdisk-*direct"))))
 
@@ -944,7 +939,7 @@ class Wic2(WicTestCase):
 
         return wkspath
 
-    def _get_wic_partitions(self, wkspath, native_sysroot=None, ignore_status=False):
+    def _get_wic_partitions(self, wkspath, ignore_status=False):
         p = runCmd("wic create %s -e core-image-minimal -o %s" % (wkspath, self.resultdir),
                    ignore_status=ignore_status)
 
@@ -960,12 +955,9 @@ class Wic2(WicTestCase):
 
         wicimg = wicout[0]
 
-        if not native_sysroot:
-            native_sysroot = get_bb_var("RECIPE_SYSROOT_NATIVE", "wic-tools")
-
         # verify partition size with wic
         res = runCmd("parted -m %s unit kib p 2>/dev/null" % wicimg,
-                     native_sysroot=native_sysroot)
+                     native_sysroot=self.wic_native_sysroot)
 
         # parse parted output which looks like this:
         # BYT;\n
@@ -999,8 +991,6 @@ class Wic2(WicTestCase):
         self.assertNotEqual(p.status, 0, "wic exited successfully when an error was expected:\n%s" % p.output)
 
     def test_offset(self):
-        native_sysroot = get_bb_var("RECIPE_SYSROOT_NATIVE", "wic-tools")
-
         with NamedTemporaryFile("w", suffix=".wks") as tempf:
             # Test that partitions are placed at the correct offsets, default KB
             tempf.write("bootloader --ptable gpt\n" \
@@ -1008,7 +998,7 @@ class Wic2(WicTestCase):
                         "part /bar                 --ondisk hda --offset 102432 --fixed-size 100M --fstype=ext4\n")
             tempf.flush()
 
-            _, partlns = self._get_wic_partitions(tempf.name, native_sysroot)
+            _, partlns = self._get_wic_partitions(tempf.name)
             self.assertEqual(partlns, [
                 "1:32.0kiB:102432kiB:102400kiB:ext4:primary:;",
                 "2:102432kiB:204832kiB:102400kiB:ext4:primary:;",
@@ -1021,7 +1011,7 @@ class Wic2(WicTestCase):
                         "part /bar                 --ondisk hda --offset 102432K --fixed-size 100M --fstype=ext4\n")
             tempf.flush()
 
-            _, partlns = self._get_wic_partitions(tempf.name, native_sysroot)
+            _, partlns = self._get_wic_partitions(tempf.name)
             self.assertEqual(partlns, [
                 "1:32.0kiB:102432kiB:102400kiB:ext4:primary:;",
                 "2:102432kiB:204832kiB:102400kiB:ext4:primary:;",
@@ -1034,7 +1024,7 @@ class Wic2(WicTestCase):
                         "part /bar                 --ondisk hda --offset 101M --fixed-size 100M --fstype=ext4\n")
             tempf.flush()
 
-            _, partlns = self._get_wic_partitions(tempf.name, native_sysroot)
+            _, partlns = self._get_wic_partitions(tempf.name)
             self.assertEqual(partlns, [
                 "1:32.0kiB:102432kiB:102400kiB:ext4:primary:;",
                 "2:103424kiB:205824kiB:102400kiB:ext4:primary:;",
@@ -1047,7 +1037,7 @@ class Wic2(WicTestCase):
                         "part /bar                 --ondisk hda --offset 102432 --fixed-size 100M --fstype=ext4\n")
             tempf.flush()
 
-            _, partlns = self._get_wic_partitions(tempf.name, native_sysroot)
+            _, partlns = self._get_wic_partitions(tempf.name)
             self.assertEqual(partlns, [
                 "1:32.5kiB:101408kiB:101376kiB:ext4:primary:;",
                 "2:102432kiB:204832kiB:102400kiB:ext4:primary:;",
@@ -1059,7 +1049,7 @@ class Wic2(WicTestCase):
                         "part /    --source rootfs --ondisk hda --offset 1s --fixed-size 100M --fstype=ext4\n")
             tempf.flush()
 
-            _, partlns = self._get_wic_partitions(tempf.name, native_sysroot)
+            _, partlns = self._get_wic_partitions(tempf.name)
             self.assertEqual(partlns, [
                 "1:0.50kiB:102400kiB:102400kiB:ext4::;",
                 ])
@@ -1084,14 +1074,13 @@ class Wic2(WicTestCase):
             self.assertNotEqual(p.status, 0, "wic exited successfully when an error was expected:\n%s" % p.output)
 
     def test_extra_space(self):
-        native_sysroot = get_bb_var("RECIPE_SYSROOT_NATIVE", "wic-tools")
 
         with NamedTemporaryFile("w", suffix=".wks") as tempf:
             tempf.write("bootloader --ptable gpt\n" \
                         "part /     --source rootfs --ondisk hda --extra-space 200M --fstype=ext4\n")
             tempf.flush()
 
-            _, partlns = self._get_wic_partitions(tempf.name, native_sysroot)
+            _, partlns = self._get_wic_partitions(tempf.name)
             self.assertEqual(len(partlns), 1)
             size = partlns[0].split(':')[3]
             self.assertRegex(size, r'^[0-9]+kiB$')
@@ -1162,11 +1151,9 @@ class Wic2(WicTestCase):
         image_path = os.path.join(bb_vars['DEPLOY_DIR_IMAGE'], '%s.wic' % bb_vars['IMAGE_LINK_NAME'])
         self.assertTrue(os.path.exists(image_path), msg="Image file %s wasn't generated as expected" % image_path)
 
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
-
         # Fstype column from 'wic ls' should be empty for the second partition
         # as listed in test_empty_plugin.wks
-        result = runCmd("wic ls %s -n %s | awk -F ' ' '{print $1 \" \" $5}' | grep '^2' | wc -w" % (image_path, sysroot))
+        result = runCmd("wic ls %s -n %s | awk -F ' ' '{print $1 \" \" $5}' | grep '^2' | wc -w" % (image_path, self.wic_native_sysroot))
         self.assertEqual('1', result.output)
 
     @skipIfNotArch(['i586', 'i686', 'x86_64'])
@@ -1391,20 +1378,19 @@ class Wic2(WicTestCase):
                 sparse.truncate(1024 ** 3)
                 new_image_path = sparse.name
 
-            sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
-            cmd = "wic write -n %s --expand 1:0 %s %s" % (sysroot, image_path, new_image_path)
+            cmd = "wic write -n %s --expand 1:0 %s %s" % (self.wic_native_sysroot, image_path, new_image_path)
             runCmd(cmd)
 
             # check if partitions are expanded
-            orig = runCmd("wic ls %s -n %s" % (image_path, sysroot))
-            exp = runCmd("wic ls %s -n %s" % (new_image_path, sysroot))
+            orig = runCmd("wic ls %s -n %s" % (image_path, self.wic_native_sysroot))
+            exp = runCmd("wic ls %s -n %s" % (new_image_path, self.wic_native_sysroot))
             orig_sizes = [int(line.split()[3]) for line in orig.output.split('\n')[1:]]
             exp_sizes = [int(line.split()[3]) for line in exp.output.split('\n')[1:]]
             self.assertEqual(orig_sizes[0], exp_sizes[0]) # first partition is not resized
             self.assertTrue(orig_sizes[1] < exp_sizes[1], msg="Parition size wasn't enlarged (%s vs %s)" % (orig_sizes[1], exp_sizes[1]))
 
             # Check if all free space is partitioned
-            result = runCmd("%s/usr/sbin/sfdisk -F %s" % (sysroot, new_image_path))
+            result = runCmd("sfdisk -F %s" % (new_image_path), native_sysroot=self.wic_native_sysroot)
             self.assertIn("0 B, 0 bytes, 0 sectors", result.output)
 
             os.rename(image_path, image_path + '.bak')
@@ -1428,23 +1414,20 @@ class Wic2(WicTestCase):
         image = 'core-image-minimal'
         bitbake(image)
         self.remove_config(config)
-        deploy_dir = get_bb_var('DEPLOY_DIR_IMAGE')
         bb_vars = get_bb_vars(['DEPLOY_DIR_IMAGE', 'IMAGE_LINK_NAME'], image)
         image_path = os.path.join(bb_vars['DEPLOY_DIR_IMAGE'], '%s.wic' % bb_vars['IMAGE_LINK_NAME'])
-
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
 
         # Image is created
         self.assertTrue(os.path.exists(image_path), "image file %s doesn't exist" % image_path)
 
         # Check the names of the three partitions
         # as listed in test_gpt_partition_name.wks
-        result = runCmd("%s/usr/sbin/sfdisk --part-label %s 1" % (sysroot, image_path))
+        result = runCmd("sfdisk --part-label %s 1" % (image_path), native_sysroot=self.wic_native_sysroot)
         self.assertEqual('boot-A', result.output)
-        result = runCmd("%s/usr/sbin/sfdisk --part-label %s 2" % (sysroot, image_path))
+        result = runCmd("sfdisk --part-label %s 2" % (image_path), native_sysroot=self.wic_native_sysroot)
         self.assertEqual('root-A', result.output)
         # When the --part-name is not defined, the partition name is equal to the --label
-        result = runCmd("%s/usr/sbin/sfdisk --part-label %s 3" % (sysroot, image_path))
+        result = runCmd("sfdisk --part-label %s 3" % (image_path), native_sysroot=self.wic_native_sysroot)
         self.assertEqual('ext-space', result.output)
 
     def test_empty_zeroize_plugin(self):
@@ -1492,14 +1475,12 @@ class ModifyTests(WicTestCase):
         images = glob(os.path.join(self.resultdir, "wictestdisk-*.direct"))
         self.assertEqual(1, len(images))
 
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
-
         # list partitions
-        result = runCmd("wic ls %s -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s -n %s" % (images[0], self.wic_native_sysroot))
         self.assertEqual(3, len(result.output.split('\n')))
 
         # list directory content of the first partition
-        result = runCmd("wic ls %s:1/ -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:1/ -n %s" % (images[0], self.wic_native_sysroot))
         self.assertEqual(6, len(result.output.split('\n')))
 
     def test_wic_cp(self):
@@ -1510,20 +1491,18 @@ class ModifyTests(WicTestCase):
         images = glob(os.path.join(self.resultdir, "wictestdisk-*.direct"))
         self.assertEqual(1, len(images))
 
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
-
         # list directory content of the first partition
-        result = runCmd("wic ls %s:1/ -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:1/ -n %s" % (images[0], self.wic_native_sysroot))
         self.assertEqual(6, len(result.output.split('\n')))
 
         with NamedTemporaryFile("w", suffix=".wic-cp") as testfile:
             testfile.write("test")
 
             # copy file to the partition
-            runCmd("wic cp %s %s:1/ -n %s" % (testfile.name, images[0], sysroot))
+            runCmd("wic cp %s %s:1/ -n %s" % (testfile.name, images[0], self.wic_native_sysroot))
 
             # check if file is there
-            result = runCmd("wic ls %s:1/ -n %s" % (images[0], sysroot))
+            result = runCmd("wic ls %s:1/ -n %s" % (images[0], self.wic_native_sysroot))
             self.assertEqual(7, len(result.output.split('\n')))
             self.assertIn(os.path.basename(testfile.name), result.output)
 
@@ -1534,17 +1513,17 @@ class ModifyTests(WicTestCase):
             copy(testfile.name, testdir)
 
             # copy directory to the partition
-            runCmd("wic cp %s %s:1/ -n %s" % (testdir, images[0], sysroot))
+            runCmd("wic cp %s %s:1/ -n %s" % (testdir, images[0], self.wic_native_sysroot))
 
             # check if directory is there
-            result = runCmd("wic ls %s:1/ -n %s" % (images[0], sysroot))
+            result = runCmd("wic ls %s:1/ -n %s" % (images[0], self.wic_native_sysroot))
             self.assertEqual(8, len(result.output.split('\n')))
             self.assertIn(os.path.basename(testdir), result.output)
 
             # copy the file from the partition and check if it success
             dest = '%s-cp' % testfile.name
             runCmd("wic cp %s:1/%s %s -n %s" % (images[0],
-                    os.path.basename(testfile.name), dest, sysroot))
+                    os.path.basename(testfile.name), dest, self.wic_native_sysroot))
             self.assertTrue(os.path.exists(dest), msg="File %s wasn't generated as expected" % dest)
 
 
@@ -1556,23 +1535,22 @@ class ModifyTests(WicTestCase):
         images = glob(os.path.join(self.resultdir, "mkefidisk-*.direct"))
         self.assertEqual(1, len(images))
 
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
         # Not bulletproof but hopefully sufficient
         kerneltype = get_bb_var('KERNEL_IMAGETYPE', 'virtual/kernel')
 
         # list directory content of the first partition
-        result = runCmd("wic ls %s:1 -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:1 -n %s" % (images[0], self.wic_native_sysroot))
         self.assertIn('\n%s ' % kerneltype.upper(), result.output)
         self.assertIn('\nEFI          <DIR>     ', result.output)
 
         # remove file. EFI partitions are case-insensitive so exercise that too
-        runCmd("wic rm %s:1/%s -n %s" % (images[0], kerneltype.lower(), sysroot))
+        runCmd("wic rm %s:1/%s -n %s" % (images[0], kerneltype.lower(), self.wic_native_sysroot))
 
         # remove directory
-        runCmd("wic rm %s:1/efi -n %s" % (images[0], sysroot))
+        runCmd("wic rm %s:1/efi -n %s" % (images[0], self.wic_native_sysroot))
 
         # check if they're removed
-        result = runCmd("wic ls %s:1 -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:1 -n %s" % (images[0], self.wic_native_sysroot))
         self.assertNotIn('\n%s        ' % kerneltype.upper(), result.output)
         self.assertNotIn('\nEFI          <DIR>     ', result.output)
 
@@ -1584,10 +1562,8 @@ class ModifyTests(WicTestCase):
         images = glob(os.path.join(self.resultdir, "wictestdisk-*.direct"))
         self.assertEqual(1, len(images))
 
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
-
         # list directory content of the second ext4 partition
-        result = runCmd("wic ls %s:2/ -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:2/ -n %s" % (images[0], self.wic_native_sysroot))
         self.assertTrue(set(['bin', 'home', 'proc', 'usr', 'var', 'dev', 'lib', 'sbin']).issubset(
                             set(line.split()[-1] for line in result.output.split('\n') if line)), msg="Expected directories not present %s" % result.output)
 
@@ -1599,10 +1575,8 @@ class ModifyTests(WicTestCase):
         images = glob(os.path.join(self.resultdir, "wictestdisk-*.direct"))
         self.assertEqual(1, len(images))
 
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
-
         # list directory content of the ext4 partition
-        result = runCmd("wic ls %s:2/ -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:2/ -n %s" % (images[0], self.wic_native_sysroot))
         dirs = set(line.split()[-1] for line in result.output.split('\n') if line)
         self.assertTrue(set(['bin', 'home', 'proc', 'usr', 'var', 'dev', 'lib', 'sbin']).issubset(dirs), msg="Expected directories not present %s" % dirs)
 
@@ -1610,20 +1584,20 @@ class ModifyTests(WicTestCase):
             testfile.write("test")
 
             # copy file to the partition
-            runCmd("wic cp %s %s:2/ -n %s" % (testfile.name, images[0], sysroot))
+            runCmd("wic cp %s %s:2/ -n %s" % (testfile.name, images[0], self.wic_native_sysroot))
 
             # check if file is there
-            result = runCmd("wic ls %s:2/ -n %s" % (images[0], sysroot))
+            result = runCmd("wic ls %s:2/ -n %s" % (images[0], self.wic_native_sysroot))
             newdirs = set(line.split()[-1] for line in result.output.split('\n') if line)
             self.assertEqual(newdirs.difference(dirs), set([os.path.basename(testfile.name)]))
 
             # check if the file to copy is in the partition
-            result = runCmd("wic ls %s:2/etc/ -n %s" % (images[0], sysroot))
+            result = runCmd("wic ls %s:2/etc/ -n %s" % (images[0], self.wic_native_sysroot))
             self.assertIn('fstab', [line.split()[-1] for line in result.output.split('\n') if line])
 
             # copy file from the partition, replace the temporary file content with it and
             # check for the file size to validate the copy
-            runCmd("wic cp %s:2/etc/fstab %s -n %s" % (images[0], testfile.name, sysroot))
+            runCmd("wic cp %s:2/etc/fstab %s -n %s" % (images[0], testfile.name, self.wic_native_sysroot))
             self.assertTrue(os.stat(testfile.name).st_size > 0, msg="Filesize not as expected %s" % os.stat(testfile.name).st_size)
 
 
@@ -1635,22 +1609,20 @@ class ModifyTests(WicTestCase):
         images = glob(os.path.join(self.resultdir, "mkefidisk-*.direct"))
         self.assertEqual(1, len(images))
 
-        sysroot = get_bb_var('RECIPE_SYSROOT_NATIVE', 'wic-tools')
-
         # list directory content of the /etc directory on ext4 partition
-        result = runCmd("wic ls %s:2/etc/ -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:2/etc/ -n %s" % (images[0], self.wic_native_sysroot))
         self.assertIn('fstab', [line.split()[-1] for line in result.output.split('\n') if line])
 
         # remove file
-        runCmd("wic rm %s:2/etc/fstab -n %s" % (images[0], sysroot))
+        runCmd("wic rm %s:2/etc/fstab -n %s" % (images[0], self.wic_native_sysroot))
 
         # check if it's removed
-        result = runCmd("wic ls %s:2/etc/ -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:2/etc/ -n %s" % (images[0], self.wic_native_sysroot))
         self.assertNotIn('fstab', [line.split()[-1] for line in result.output.split('\n') if line])
 
         # remove non-empty directory
-        runCmd("wic rm -r %s:2/etc/ -n %s" % (images[0], sysroot))
+        runCmd("wic rm -r %s:2/etc/ -n %s" % (images[0], self.wic_native_sysroot))
 
         # check if it's removed
-        result = runCmd("wic ls %s:2/ -n %s" % (images[0], sysroot))
+        result = runCmd("wic ls %s:2/ -n %s" % (images[0], self.wic_native_sysroot))
         self.assertNotIn('etc', [line.split()[-1] for line in result.output.split('\n') if line])
