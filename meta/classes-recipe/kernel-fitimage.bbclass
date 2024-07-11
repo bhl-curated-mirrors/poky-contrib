@@ -579,9 +579,7 @@ fitimage_assemble() {
 	# Step 1: Prepare a kernel image section.
 	#
 	fitimage_emit_section_maint $1 imagestart
-
-	uboot_prep_kimage
-	fitimage_emit_section_kernel $1 $kernelcount linux.bin "$linux_comp"
+	fitimage_emit_section_kernel $1 $kernelcount linux.bin "$(cat linux.comp)"
 
 	#
 	# Step 2: Prepare a DTB image section
@@ -764,6 +762,7 @@ fitimage_assemble() {
 do_assemble_fitimage() {
 	if echo ${KERNEL_IMAGETYPES} | grep -wq "fitImage"; then
 		cd ${B}
+		uboot_prep_kimage
 		fitimage_assemble fit-image.its fitImage-none ""
 		if [ "${INITRAMFS_IMAGE_BUNDLE}" != "1" ]; then
 			ln -sf fitImage-none ${B}/${KERNEL_OUTPUT_DIR}/fitImage

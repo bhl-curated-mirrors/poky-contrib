@@ -45,5 +45,6 @@ uboot_prep_kimage() {
 		mv -f "linux.bin${linux_suffix}" linux.bin
 	fi
 
+	[ -n "${vmlinux_path}" ] && echo "${linux_comp}" > linux.comp
 	echo "${linux_comp}"
 }
