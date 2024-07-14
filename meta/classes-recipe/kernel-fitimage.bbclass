@@ -169,8 +169,9 @@ fitimage_emit_section_kernel() {
 
 	ENTRYPOINT="${UBOOT_ENTRYPOINT}"
 	if [ -n "${UBOOT_ENTRYSYMBOL}" ]; then
+		kernel_base=$(basename $3)
 		ENTRYPOINT=`${HOST_PREFIX}nm vmlinux | \
-			awk '$3=="${UBOOT_ENTRYSYMBOL}" {print "0x"$1;exit}'`
+			awk '$kernel_base=="${UBOOT_ENTRYSYMBOL}" {print "0x"$1;exit}'`
 	fi
 
 	cat << EOF >> $1
@@ -567,7 +568,7 @@ fitimage_assemble() {
 	setupcount=""
 	bootscr_id=""
 	default_dtb_image=""
-	rm -f $1 arch/${ARCH}/boot/$2
+	rm -f "$1" "arch/${ARCH}/boot/$(basename $2)"
 
 	if [ -n "${UBOOT_SIGN_IMG_KEYNAME}" -a "${UBOOT_SIGN_KEYNAME}" = "${UBOOT_SIGN_IMG_KEYNAME}" ]; then
 		bbfatal "Keys used to sign images and configuration nodes must be different."
@@ -606,6 +607,17 @@ fitimage_assemble() {
 			# Strip off the path component from the filename
 			if "${@'false' if oe.types.boolean(d.getVar('KERNEL_DTBVENDORED')) else 'true'}"; then
 				DTB=`basename $DTB`
+			fi
+
+			# Find DTBs without sub-folders when running in deploy folder
+			if [ ! -e "$DTB_PATH" ]; then
+				DTB=$(basename $DTB)
+				DTB_PATH=$(readlink -f $DTB)
+			fi
+
+			# Fail as early as possible if there is still no DTB file found
+			if [ ! -e "$DTB_PATH" ]; then
+				bberror "Cannot find the DTB file at $DTB_PATH"
 			fi
 
 			# Set the default dtb image if it exists in the devicetree.
@@ -658,9 +670,8 @@ fitimage_assemble() {
 
 	if [ -n "${UBOOT_ENV}" ] && [ -d "${STAGING_DIR_HOST}/boot" ]; then
 		if [ -e "${STAGING_DIR_HOST}/boot/${UBOOT_ENV_BINARY}" ]; then
-			cp ${STAGING_DIR_HOST}/boot/${UBOOT_ENV_BINARY} ${B}
 			bootscr_id="${UBOOT_ENV_BINARY}"
-			fitimage_emit_section_boot_script $1 "$bootscr_id" ${UBOOT_ENV_BINARY}
+			fitimage_emit_section_boot_script $1 "$bootscr_id" "${STAGING_DIR_HOST}/boot/${UBOOT_ENV_BINARY}"
 		else
 			bbwarn "${STAGING_DIR_HOST}/boot/${UBOOT_ENV_BINARY} not found."
 		fi
@@ -669,9 +680,14 @@ fitimage_assemble() {
 	#
 	# Step 4: Prepare a setup section. (For x86)
 	#
+	# Run from kernel build folder (bundled mode)
 	if [ -e ${KERNEL_OUTPUT_DIR}/setup.bin ]; then
 		setupcount=1
 		fitimage_emit_section_setup $1 $setupcount ${KERNEL_OUTPUT_DIR}/setup.bin
+	# Run from deploy folder (unbundled mode)
+	elif [ -e setup.bin ]; then
+		setupcount=1
+		fitimage_emit_section_setup $1 $setupcount "$(readlink -f setup.bin)"
 	fi
 
 	#
@@ -744,8 +760,8 @@ fitimage_assemble() {
 	#
 	${UBOOT_MKIMAGE} \
 		${@'-D "${UBOOT_MKIMAGE_DTCOPTS}"' if len('${UBOOT_MKIMAGE_DTCOPTS}') else ''} \
-		-f $1 \
-		${KERNEL_OUTPUT_DIR}/$2
+		-f "$1" \
+		"$2"
 
 	#
 	# Step 8: Sign the image
@@ -754,7 +770,7 @@ fitimage_assemble() {
 		${UBOOT_MKIMAGE_SIGN} \
 			${@'-D "${UBOOT_MKIMAGE_DTCOPTS}"' if len('${UBOOT_MKIMAGE_DTCOPTS}') else ''} \
 			-F -k "${UBOOT_SIGN_KEYDIR}" \
-			-r ${KERNEL_OUTPUT_DIR}/$2 \
+			-r "$2" \
 			${UBOOT_MKIMAGE_SIGN_ARGS}
 	fi
 }
@@ -763,7 +779,7 @@ do_assemble_fitimage() {
 	if echo ${KERNEL_IMAGETYPES} | grep -wq "fitImage"; then
 		cd ${B}
 		uboot_prep_kimage
-		fitimage_assemble fit-image.its fitImage-none ""
+		fitimage_assemble fit-image.its ${KERNEL_OUTPUT_DIR}/fitImage-none ""
 		if [ "${INITRAMFS_IMAGE_BUNDLE}" != "1" ]; then
 			ln -sf fitImage-none ${B}/${KERNEL_OUTPUT_DIR}/fitImage
 		fi
