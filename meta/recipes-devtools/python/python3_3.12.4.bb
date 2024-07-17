@@ -166,6 +166,7 @@ do_install:prepend() {
 
 do_install:append:class-target() {
         oe_multilib_header python${PYTHON_MAJMIN}/pyconfig.h
+        ln -sf ${bindir}/python3 ${D}${bindir}/python
 }
 
 do_install:append:class-native() {
