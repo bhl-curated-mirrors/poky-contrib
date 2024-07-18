@@ -839,6 +839,8 @@ def splitdebuginfo(file, dvar, dv, d):
     return (file, sources)
 
 def splitstaticdebuginfo(file, dvar, dv, d):
+    import shutil
+
     # Unlike the function above, there is no way to split a static library
     # two components.  So to get similar results we will copy the unmodified
     # static library (containing the debug symbols) into a new directory.
@@ -1231,7 +1233,7 @@ def process_split_and_strip_files(d):
             target = inodes[ref][0][len(dvar):]
             for file in inodes[ref][1:]:
                 src = file[len(dvar):]
-                dest = dv["libdir"] + os.path.dirname(src) + dv["dir"] + "/" + os.path.basename(target) + dv["append"]
+                dest = dv["libdir"] + os.path.dirname(src) + dv["dir"] + "/" + os.path.basename(file) + dv["append"]
                 fpath = dvar + dest
                 ftarget = dvar + dv["libdir"] + os.path.dirname(target) + dv["dir"] + "/" + os.path.basename(target) + dv["append"]
                 if os.access(ftarget, os.R_OK):
