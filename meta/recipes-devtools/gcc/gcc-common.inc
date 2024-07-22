@@ -142,3 +142,7 @@ remove_sysroot_paths_from_checksum_options () {
 cleanup_installed_include_fixed () {
 	find ${D}${libdir}/gcc/${TARGET_SYS}/${BINV}/include-fixed -type f -not -name "README" -not -name limits.h -not -name syslimits.h | xargs rm -f
 }
+
+cleanup_installed_include_fixed () {
+	find ${D}${libdir}/gcc/${TARGET_SYS}/${BINV}/include-fixed -type f -not -name "README" -not -name limits.h -not -name syslimits.h | xargs rm -f
+}
