@@ -41,6 +41,7 @@ RDEPENDS:${PN}-ptest += " \
     python3-pretend \
     python3-psutil \
     python3-pytest \
+    python3-tomllib \
     python3-unittest-automake-output \
     python3-pytest-subtests \
     python3-pytz \
