@@ -60,7 +60,6 @@ PTESTS_FAST = "\
     python3-atomicwrites \
     python3-attrs \
     python3-bcrypt \
-    python3-beartype \
     python3-calver \
     python3-hypothesis \
     python3-idna \
