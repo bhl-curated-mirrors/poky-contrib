@@ -1,7 +1,8 @@
-From e47d157631d1b97403f253c63d361b7380b32c22 Mon Sep 17 00:00:00 2001
+From 9e7758ac824bc96d8e3a0c99d1864102a3565c79 Mon Sep 17 00:00:00 2001
 From: Alex Kube <alexander.j.kube@gmail.com>
 Date: Wed, 23 Oct 2019 21:17:16 +0430
-Subject: [PATCH] make.bash: override CC when building dist and go_bootstrap
+Subject: [PATCH 4/9] make.bash: override CC when building dist and
+ go_bootstrap
 
 for handling OE cross-canadian builds.
 
@@ -14,28 +15,29 @@ Upstream-Status: Inappropriate [OE specific]
 Signed-off-by: Alexander J Kube <alexander.j.kube@gmail.com>
 Signed-off-by: Jose Quaresma <jose.quaresma@foundries.io>
 ---
- src/make.bash | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ src/make.bash | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/src/make.bash b/src/make.bash
-index 76ad516..074e129 100755
+index 814b7e87e1..f17493ec0b 100755
 --- a/src/make.bash
 +++ b/src/make.bash
-@@ -198,7 +198,7 @@ if [[ "$GOROOT_BOOTSTRAP" == "$GOROOT" ]]; then
- 	exit 1
- fi
- rm -f cmd/dist/dist
--GOROOT="$GOROOT_BOOTSTRAP" nogoenv "$GOROOT_BOOTSTRAP/bin/go" build -o cmd/dist/dist ./cmd/dist
-+CC="${BUILD_CC:-${CC}}" GOROOT="$GOROOT_BOOTSTRAP" nogoenv "$GOROOT_BOOTSTRAP/bin/go" build -o cmd/dist/dist ./cmd/dist
+@@ -160,6 +160,7 @@ fi
+ export GOROOT_BOOTSTRAP
  
- # -e doesn't propagate out of eval, so check success by hand.
- eval $(./cmd/dist/dist env -p || echo FAIL=true)
-@@ -223,7 +223,7 @@ fi
+ bootstrapenv() {
++	CC="${BUILD_CC:-${CC}}" \
+ 	GOROOT="$GOROOT_BOOTSTRAP" GO111MODULE=off GOENV=off GOOS= GOARCH= GOEXPERIMENT= GOFLAGS= "$@"
+ }
+ 
+@@ -223,6 +224,7 @@ fi
  # Run dist bootstrap to complete make.bash.
  # Bootstrap installs a proper cmd/dist, built with the new toolchain.
  # Throw ours, built with the bootstrap toolchain, away after bootstrap.
--./cmd/dist/dist bootstrap -a $vflag $GO_DISTFLAGS "$@"
-+CC="${BUILD_CC:-${CC}}" ./cmd/dist/dist bootstrap -a $vflag $GO_DISTFLAGS "$@"
++CC="${BUILD_CC:-${CC}}" \
+ ./cmd/dist/dist bootstrap -a $vflag $GO_DISTFLAGS "$@"
  rm -f ./cmd/dist/dist
  
- # DO NOT ADD ANY NEW CODE HERE.
+-- 
+2.45.2
+
