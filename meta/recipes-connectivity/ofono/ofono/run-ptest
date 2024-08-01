@@ -1,0 +1,25 @@
+#!/bin/sh
+
+ret_val=0
+
+for test in test-*; do
+    case "$test" in
+      test-mux)
+        # the basic mux test requires a phonesim server process
+        # to connect to
+        args="-s /testmux/basic"
+        ;;
+      *)
+        args=""
+        ;;
+    esac
+
+    if "./$test" $args >> ofono_test.log 2>&1; then
+        echo "PASS: $test"
+    else
+        echo "FAIL: $test"
+        ret_val=1
+    fi
+done
+
+exit $ret_val
