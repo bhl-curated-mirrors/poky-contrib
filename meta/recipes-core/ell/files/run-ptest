@@ -1,0 +1,23 @@
+#!/bin/sh
+
+ret_val=0
+
+for test in test-*; do
+    case "$test" in
+        test-pem | test-key)
+            if ! [ -d /sys/module/pkcs8_key_parser ]; then
+                echo "SKIP: $test"
+                continue
+            fi
+            ;;
+    esac
+
+    if "./$test" >> ell_test.log 2>&1; then
+        echo "PASS: $test"
+    else
+        echo "FAIL: $test"
+        ret_val=1
+    fi
+done
+
+exit $ret_val

@@ -15,6 +15,7 @@ PTESTS_FAST = "\
     cpio \
     diffstat \
     diffutils \
+    ell \
     ethtool \
     expat \
     expect \

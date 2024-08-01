@@ -10,9 +10,27 @@ SECTION = "libs"
 LICENSE  = "LGPL-2.1-only"
 LIC_FILES_CHKSUM = "file://COPYING;md5=fb504b67c50331fc78734fed90fb0e09"
 
-DEPENDS = "dbus"
+DEPENDS = "dbus openssl-native xxd-native"
 
-inherit autotools pkgconfig
+inherit autotools pkgconfig ptest
 
-SRC_URI = "https://mirrors.edge.kernel.org/pub/linux/libs/${BPN}/${BPN}-${PV}.tar.xz"
+SRC_URI = " \
+    https://mirrors.edge.kernel.org/pub/linux/libs/${BPN}/${BPN}-${PV}.tar.xz \
+    file://run-ptest \
+"
 SRC_URI[sha256sum] = "97942e8cefb130b632496e5485242f3f374f3b8846800fb74fffd76dc2a0c726"
+
+EXTRA_OECONF += "--enable-tests --enable-maintainer-mode"
+CFLAGS += "-UUNITDIR -DUNITDIR="\\"./unit/\\"""
+
+do_compile:prepend() {
+    mkdir -p ${B}/unit
+}
+
+do_install_ptest() {
+    install -m755 -Dt ${D}${PTEST_PATH} $(find ${B}/unit -executable -type f)
+    install -Dt ${D}${PTEST_PATH}/unit \
+        ${S}/unit/dbus.conf \
+        ${S}/unit/settings.test \
+        $(find ${B}/unit -name \*.pem -type f)
+}
